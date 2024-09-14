@@ -1,0 +1,167 @@
+{
+  "name": "cpu",
+  "displayName": "Competitive Programmers Union",
+  "description": "",
+  "version": "0.0.1",
+  "author": "Thomas Marlowe",
+  "engines": {
+    "vscode": "^1.93.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Competitive Programmers Union",
+      "properties": {
+        "cpu.compiler": {
+          "type": "string",
+          "default": "",
+          "description": "C++ compiler path"
+        },
+        "cpu.testDir": {
+          "type": "string",
+          "default": "",
+          "description": "Test directory"
+        },
+        "cpu.buildDir": {
+          "type": "string",
+          "default": "",
+          "description": "Build directory"
+        },
+        "cpu.compileArgs.fast": {
+          "description": "Compile args for running",
+          "type": "array",
+          "default": [
+            "-O2"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "cpu.compileArgs.debug": {
+          "description": "Compile args for debugging",
+          "type": "array",
+          "default": [
+            "-Og",
+            "-D_GLIBCXX_DEBUG",
+            "-D_GLIBCXX_DEBUG_PEDANTIC",
+            "-fsanitize=address",
+            "-fsanitize=undefined",
+            "-fno-sanitize-recover",
+            "-fstack-protector"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "cpu.compileArgs.common": {
+          "description": "Compile args for all configurations",
+          "type": "array",
+          "default": [
+            "-Wall",
+            "-Wreorder",
+            "-Wextra",
+            "-pedantic",
+            "-stdlib=libc++",
+            "-std=c++20",
+            "-Wl,-stack_size",
+            "-Wl,0x40000000",
+            "-Wshadow",
+            "-Wformat=2",
+            "-Wfloat-equal",
+            "-Wcast-qual",
+            "-Wcast-align",
+            "-g"
+          ],
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "cpu",
+          "title": "Competitive Programmers Union",
+          "icon": "resources/icon.png"
+        }
+      ],
+      "panel": [
+        {
+          "id": "cpurun",
+          "title": "Test I/O",
+          "icon": "resources/icon.png"
+        }
+      ]
+    },
+    "views": {
+      "cpu": [
+        {
+          "type": "webview",
+          "id": "cpu.activitybar",
+          "name": "Tests"
+        }
+      ],
+      "cpurun": [
+        {
+          "type": "webview",
+          "id": "cpu.panel",
+          "name": "Test I/O"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "npm run check-types && node esbuild.js",
+    "check-types": "tsc",
+    "watch": "node esbuild.mjs --watch",
+    "vscode:prepublish": "npm run package",
+    "package": "npm run check-types && node esbuild.mjs --production"
+  },
+  "devDependencies": {
+    "@types/node": "20.x",
+    "@types/pidusage": "^2.0.5",
+    "@types/react-collapse": "^5.0.4",
+    "@types/react-dom": "^18.3.0",
+    "@types/vscode": "^1.93.0",
+    "esbuild": "^0.23.1",
+    "tailwindcss": "^3.4.10",
+    "typescript": "^5.5.4"
+  },
+  "extensionDependencies": [
+    "vadimcn.vscode-lldb",
+    "llvm-vs-code-extensions.vscode-clangd"
+  ],
+  "dependencies": {
+    "@codemirror/commands": "^6.6.1",
+    "@codemirror/merge": "^6.7.0",
+    "@codemirror/search": "^6.5.6",
+    "@codemirror/state": "^6.4.1",
+    "@codemirror/view": "^6.33.0",
+    "@formkit/drag-and-drop": "^0.1.6",
+    "@hediet/node-reload": "^0.8.0",
+    "@nextui-org/checkbox": "^2.1.4",
+    "@nextui-org/modal": "^2.0.39",
+    "@nextui-org/popover": "^2.1.27",
+    "@nextui-org/progress": "^2.0.33",
+    "@nextui-org/spinner": "^2.0.33",
+    "@nextui-org/system": "^2.2.5",
+    "@nextui-org/theme": "^2.2.9",
+    "@nextui-org/tooltip": "^2.0.39",
+    "@types/terminal-kit": "^2.5.6",
+    "@vscode/codicons": "^0.0.36",
+    "framer-motion": "11.3.19",
+    "pidusage": "^3.0.2",
+    "react": "^18.3.1",
+    "react-collapse": "^5.1.1",
+    "react-dom": "^18.3.1",
+    "react-select": "^5.8.0",
+    "tailwind-merge": "^2.5.2",
+    "terminal-kit": "^3.1.1",
+    "vscode-languageclient": "^9.0.1"
+  }
+}

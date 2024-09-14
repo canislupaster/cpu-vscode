@@ -1,0 +1,25 @@
+{
+	"include": ["src"],
+	"exclude": ["node_modules"],
+	"compilerOptions": {
+		"jsx": "preserve",
+    "esModuleInterop": true,
+		"module": "ESNext",
+		"moduleResolution": "Node",
+    "incremental": true,
+		"noEmit": true,
+		"target": "ESNext",
+		"outDir": "out",
+    "skipLibCheck": true,
+		"lib": [
+			"ESNext",
+			//not available except in webview
+			"DOM", "DOM.Iterable"
+		],
+		"sourceMap": true,
+		"strict": true,   /* enable all strict type-checking options */
+		/* Additional Checks */
+		"noImplicitReturns": true, /* Report error when not all code paths in function return a value. */
+		"noFallthroughCasesInSwitch": true, /* Report errors for fallthrough cases in switch statement. */
+	}
+}

@@ -1,0 +1,33 @@
+.mycodicon {
+	font: normal normal normal 16px/1 codicon;
+	display: inline-block;
+	text-decoration: none;
+	text-rendering: auto;
+	text-align: center;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	user-select: none;
+	-webkit-user-select: none;
+	-ms-user-select: none;
+}
+
+@font-face {
+	font-family: 'Chivo';
+	src: url('../resources/Chivo.ttf') format('truetype');
+}
+
+@font-face {
+	font-family: 'Inter';
+	src: url('../resources/Inter.ttf') format('truetype');
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body {
+	width: 100vw !important;
+	height: 100vh !important;
+	padding: 0 !important;
+	margin: 0 !important;
+}
