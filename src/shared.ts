@@ -20,18 +20,20 @@ export type MessageToExt = {
 	type: "createTestCase"
 } | {
 	type: "removeTestCase",
-	i?: number
+	i: number
 } | {
 	type: "setTestName"
 	i: number,
 	name: string
+} | {
+	type: "runAll"
 } | {
 	type: "runTestCase",
 	i: number,
 	dbg: boolean
 } | {
 	type: "cancelRun",
-	i: number
+	i?: number
 } | {
 	type: "setChecker",
 	checker: string|null
@@ -45,7 +47,7 @@ export type MessageToExt = {
 } | {
 	type: "openTest", i?: number
 } | {
-	type: "openFile", path: string
+	type: "openFile", path: string, inOS?: boolean
 } | {
 	type: "setSource",
 	i: number, which: "inFile" | "ansFile",
@@ -59,9 +61,13 @@ export type MessageToExt = {
 } | {
 	type: "testCaseInput", inp: string
 } | {
-	type: "importTests"
+	type: "createTestSet"|"importTests"
 } | {
 	type: "moveTest", a: number, b: number
+} | {
+	type: "renameTestSet", name: string
+} | {
+	type: "switchTestSet"|"deleteTestSet", i: number
 };
 
 export type TestResult = {
@@ -69,6 +75,8 @@ export type TestResult = {
 	wallTime: number|null, cpuTime: number|null,
 	mem: number|null, exitCode: number|null
 };
+
+export const badVerdicts: TestResult["verdict"][] = ["ML","TL","RE","WA"];
 
 export type TestCase = {
 	name: string,
@@ -82,7 +90,20 @@ export type TestCase = {
 	err: {type: "compile", err: CompileError}|{type: "run", err: RunError}|null,
 };
 
-export function testErr({err}: TestCase) {
+export type RunState = {
+	runningTest?: number,
+	runAll: {
+		cancellable: boolean|null,
+		lastRun: {
+			verdict: TestResult["verdict"]|null,
+			wallTime: number|null, cpuTime: number|null, mem: number|null,
+			progress: [number,number]
+		}|null,
+		err: TestCase["err"]
+	}
+};
+
+export function testErr({err}: Pick<TestCase,"err">) {
 	return err?{
 		title: err.type=="compile" ? `Compile Error` : `Run Error`,
 		msg: err.err.err,
@@ -98,9 +119,11 @@ export type InitState = {
 	checker: Checker|null,
 	checkers: string[],
 	openTest?: number,
-	runningTest?: number,
+	run: RunState,
 	openFile: string|null,
-	order: number[]
+	order: number[],
+	testSets: Record<number,string>,
+	currentTestSet: number
 };
 
 export type TestOut = {
@@ -136,7 +159,11 @@ export type MessageFromExt = {
 } | {
 	type: "updateProgram", path: string|null
 } | {
-	type: "runTest", i?: number
+	type: "updateRunState", run: RunState
 } | {
 	type: "reorderTests", order: number[]
+} | {
+	type: "updateTestSets",
+	current: number,
+	sets: Record<number,string>
 };

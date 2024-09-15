@@ -1,11 +1,14 @@
 import { stat } from "node:fs/promises";
-import { WebviewViewProvider, workspace, Event, Disposable, WebviewView, CancellationToken, WebviewViewResolveContext, Uri, WebviewPanel } from "vscode";
+import { WebviewViewProvider, workspace, Event, Disposable, WebviewView, CancellationToken, WebviewViewResolveContext, Uri, WebviewPanel, CancellationError } from "vscode";
 import { InitState, MessageFromExt } from "./shared";
 import App from "./main";
 
 export const delay = (x: number) => new Promise<void>((res)=>setTimeout(res, x));
 export const exists = (path: string) => stat(path).then((_)=>true, (_)=>false);
 export const cfg = () => workspace.getConfiguration("cpu");
+export const cancelPromise = (x: CancellationToken) => new Promise<never>((res,rej) => {
+	x.onCancellationRequested(()=>rej(new CancellationError()));
+});
 
 export class CPUWebviewProvider implements WebviewViewProvider {
 	msgSet?: Set<MessageFromExt["type"]>;

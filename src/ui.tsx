@@ -1,5 +1,5 @@
 import "../node_modules/@vscode/codicons/dist/codicon.css";
-import "./output.css";
+import "../out/output.css";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@nextui-org/popover";
 import { Collapse } from "react-collapse";
@@ -11,6 +11,8 @@ import { NextUIProvider } from "@nextui-org/system";
 import { MessageFromExt, MessageToExt, TestResult } from "./shared";
 import ReactSelect, { ClassNamesConfig } from "react-select";
 import { createRoot } from "react-dom/client";
+import { animations, handleDragstart, handleEnd, ParentConfig, performSort, } from "@formkit/drag-and-drop";
+import { useDragAndDrop } from "@formkit/drag-and-drop/react";
 
 export const Input = ({className, icon, ...props}: {icon?: React.ReactNode}&React.InputHTMLAttributes<HTMLInputElement>) =>
 	<input type="text" className={twMerge(`text-white bg-zinc-800 w-full p-2 border-2 border-zinc-600 focus:outline-none focus:border-blue-500 transition duration-300 rounded-lg disabled:bg-zinc-600 disabled:text-gray-400 ${icon ? "pl-11" : ""}`, className)} {...props} />;
@@ -41,7 +43,7 @@ export const IconButton = ({className, icon, disabled, ...props}: {icon?: React.
 		{icon}
 	</button>;
 
-export const Anchor: React.FC<AnchorHTMLAttributes<HTMLAnchorElement>> = ({className,href,children,...props}) => {
+export const Anchor: React.FC<AnchorHTMLAttributes<HTMLAnchorElement>> = ({className,children,...props}) => {
 	const classN = twMerge(
 	`text-gray-300 inline-flex flex-row align-baseline items-baseline gap-1 underline decoration-dashed decoration-1
 		underline-offset-2 transition-all hover:text-gray-50 hover:bg-cyan-100/5 cursor-pointer`,className
@@ -92,21 +94,21 @@ export const Alert = ({title, txt, bad, className}: {title?: React.ReactNode, tx
 		</div>
 	</div>;
 
-const selectStyle: ClassNamesConfig<any,any> = {
+const selectStyle: ClassNamesConfig<unknown,boolean> = {
 	control: (state) => `flex flex-row gap-4 px-3 py-1.5 bg-zinc-800 items-center border-2 text-white rounded-lg hover:cursor-pointer ${state.menuIsOpen ? "border-blue-500" : "border-zinc-600"}`,
-	menuList: (props) => "border-zinc-700 rounded-lg bg-black border bg-zinc-900 mt-1 flex flex-col items-stretch",
-	option: ({ isDisabled, isFocused, isSelected }) => {
+	menuList: () => "border-zinc-700 rounded-lg bg-black border bg-zinc-900 mt-1 flex flex-col items-stretch",
+	option: ({ isDisabled, isFocused }) => {
 		return `${isFocused ? "bg-zinc-800" : ""} hover:bg-zinc-800 p-2 border-t first:border-none border-zinc-700 hover:cursor-pointer ${isDisabled ? "text-gray-500" : ""}`;
 	},
-	menu: (base) => "text-white absolute w-full",
-	multiValue: ({ data }) => "bg-zinc-700 text-white px-2 py-0.5 rounded-md",
-	multiValueLabel: ({ data }) => "text-white hover:bg-zinc-700",
-	valueContainer: (props) => "flex flex-row gap-1 overflow-x-scroll",
-	multiValueRemove: ({ data }) => "text-white hover:bg-zinc-700 hover:text-white ml-1",
-	indicatorSeparator: (props) => "mx-1 h-full bg-zinc-600",
-	input: (props) => "text-white",
-	noOptionsMessage: (props) => "py-2",
-	indicatorsContainer: (props) => "text-white",
+	menu: () => "text-white absolute w-full",
+	multiValue: () => "bg-zinc-700 text-white px-2 py-0.5 rounded-md",
+	multiValueLabel: () => "text-white hover:bg-zinc-700",
+	valueContainer: () => "flex flex-row gap-1 overflow-x-scroll",
+	multiValueRemove: () => "text-white hover:bg-zinc-700 hover:text-white ml-1",
+	indicatorSeparator: () => "mx-1 h-full bg-zinc-600",
+	input: () => "text-white",
+	noOptionsMessage: () => "py-2",
+	indicatorsContainer: () => "text-white",
 }
 
 export const Select = (props: React.ComponentProps<ReactSelect>) =>
@@ -120,7 +122,8 @@ export function Dropdown({parts, trigger}: {trigger?: React.ReactNode, parts: Dr
 	const [open, setOpen] = useState(false);
 	const ctx = useContext(AppCtx);
 	//these components are fucked up w/ preact and props don't merge properly with container element
-	return <Popover placement="bottom" showArrow isOpen={open} onOpenChange={setOpen} triggerScaleOnOpen={false} portalContainer={ctx.rootRef.current!!} >
+	return <Popover placement="bottom" showArrow isOpen={open}
+		onOpenChange={setOpen} triggerScaleOnOpen={false} portalContainer={ctx.rootRef.current!} >
 		<PopoverTrigger><div>{trigger}</div></PopoverTrigger>
 		<PopoverContent className="rounded-md bg-zinc-900 border-gray-800 flex flex-col gap-2 items-stretch px-0 py-0 max-w-44" >
 			<div>
@@ -162,7 +165,7 @@ export function ShowMore({children, className, forceShowMore}: {children: React.
 
 	useEffect(()=>{
 		if (showMore!=null && !forceShowMore
-			&& inner.current!!.clientHeight<=ref.current!!.clientHeight+100)
+			&& inner.current!.clientHeight<=ref.current!.clientHeight+100)
 			setShowMore(null); //not needed
 	}, [showMore!=null, forceShowMore]);
 
@@ -201,7 +204,7 @@ export const Divider = ({className}: {className?: string}) =>
 const AppCtx = createContext({
 	incTooltipCount(): void { throw "tooltips should be used in tooltip ctx only"; },
 	tooltipCount: 0,
-	rootRef: null as any as React.RefObject<HTMLDivElement>
+	rootRef: null as unknown as React.RefObject<HTMLDivElement>
 });
 
 function Wrapper({children,className,...props}: {children: React.ReactNode}&HTMLAttributes<HTMLDivElement>) {
@@ -262,7 +265,7 @@ export function AppTooltip({content, children, placement, className, onChange, .
 	}, [reallyOpen==ctx.tooltipCount])
 	
 	return <Tooltip showArrow placement={placement} content={content}
-		portalContainer={ctx.rootRef!!.current!!}
+		portalContainer={ctx.rootRef.current!}
 		classNames={{content: "max-w-[90dvw] border-zinc-600 border p-0"}}
 		isOpen={reallyOpen==ctx.tooltipCount}
 		onPointerEnter={interact} onPointerLeave={unInteract} >
@@ -280,7 +283,7 @@ export function AppTooltip({content, children, placement, className, onChange, .
 }
 
 export const Card = ({className, children, ...props}: HTMLAttributes<HTMLDivElement>) =>
-	<div className={twMerge("flex flex-col gap-1 bg-zinc-800 rounded-md p-2 border-1 border-zinc-600 shadow-md shadow-black", className)} >
+	<div className={twMerge("flex flex-col gap-1 bg-zinc-800 rounded-md p-2 border-1 border-zinc-600 shadow-md shadow-black", className)} {...props} >
 		{children}
 	</div>;
 
@@ -296,7 +299,7 @@ export function Text({className, children, v, ...props}: HTMLAttributes<HTMLPara
 	}
 }
 	
-export function useMessage(handle: (x: MessageFromExt)=>void, deps?: any[]) {
+export function useMessage(handle: (x: MessageFromExt)=>void, deps?: unknown[]) {
 	useEffect(()=>{
 		const cb = (ev: MessageEvent<MessageFromExt>) => handle(ev.data);
 		window.addEventListener('message', cb);
@@ -327,17 +330,51 @@ export function expandedVerdict(verdict: TestResult["verdict"]) {
 export function FileName({path, children, ...props}: {path: string}&Partial<React.ComponentProps<typeof AppTooltip>>) {
 	//i know, i know...
 	const idx = Math.max(path.lastIndexOf("\\\\"), path.lastIndexOf("/"));
-	return <AppTooltip content={<Anchor onClick={()=>send({type: "openFile", path})} className="max-w-full overflow-x-auto whitespace-pre p-2 py-4" >
-		{path}
-	</Anchor>} {...props} >
+	return <AppTooltip content={<div className="flex flex-col max-w-full overflow-x-auto whitespace-pre p-2 py-4 gap-2 items-start" >
+		<Anchor onClick={()=>send({type: "openFile", path})} >
+			{path}
+		</Anchor>
+		<Button onClick={()=>send({type:"openFile",path,inOS:true})} >Reveal in Explorer/Finder</Button>
+	</div>} {...props} >
 		{children ?? <Anchor>{path.slice(idx+1)}</Anchor>}
 	</AppTooltip>;
 }
 
-const vscode: {
+export function DragHandle() {
+	return <Icon icon="move" className="cursor-pointer text-2xl dragHandle self-start mt-2 mr-2" />;
+}
+
+export function dragTCs(init: number[], cfg?: ParentConfig<number>): [number[], React.RefObject<HTMLDivElement>, boolean] {
+	const [dragging, setDragging] = useState(false);
+	const [parent, vs, setVs] = useDragAndDrop<HTMLDivElement,number>(init, {
+		performSort(state, data) {
+			performSort(state,data);
+			send({type: "moveTest", a:state.draggedNode.data.index, b:state.targetIndex});
+		},
+		handleDragstart(d) {
+			handleDragstart(d);
+			setDragging(true);
+		},
+		handleEnd(data) {
+			handleEnd(data);
+			setDragging(false);
+		},
+		plugins: [animations()],
+		dragHandle: ".dragHandle",
+		...cfg
+	});
+
+	useEffect(()=>setVs(init),[init]);
+
+	return [vs,parent,dragging];
+}
+
+type VSCodeAPI = {
 	postMessage: (msg: MessageToExt) => void
-//@ts-expect-error
-} = acquireVsCodeApi();
+};
+
+declare const acquireVsCodeApi: ()=>VSCodeAPI;
+const vscode = acquireVsCodeApi();
 
 export const send = vscode.postMessage;
 

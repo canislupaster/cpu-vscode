@@ -1,20 +1,30 @@
-import { extname, join, resolve } from "path";
-import { CancellationToken, Disposable, ExtensionContext, LogOutputChannel, OutputChannel, Uri, WebviewPanel, WebviewView, WebviewViewProvider, WebviewViewResolveContext, window, workspace, Event, EventEmitter, ViewColumn, commands, OpenDialogOptions, TextEditor } from "vscode";
+import { extname, resolve } from "path";
+import { ExtensionContext, LogOutputChannel, Uri, WebviewPanel, window, workspace, EventEmitter, ViewColumn, commands, OpenDialogOptions } from "vscode";
 import { InitState, MessageFromExt, MessageToExt } from "./shared";
 import { TestCases } from "./testcases";
 import { CPUWebviewProvider } from "./util";
+import { TCP } from "./ipc";
 
 const cppExts = ["cpp","cxx","cc","c++"];
 const cppFileFilter: OpenDialogOptions["filters"] = { "C++ Source": cppExts };
 
+type AllTestSets = {
+	nextId: number,
+	current: number,
+	sets: Record<number,string>
+};
+
 export default class App {
 	private toDispose: {dispose: ()=>void}[] = [];
 	cases: TestCases;
+	ts: AllTestSets;
 	private openTestEditor?: WebviewPanel;
 
 	private reducers: {[k in MessageToExt["type"]]: (msg: Extract<MessageToExt, {type: k}>)=>Promise<void>};
 	private onMessageSource = new EventEmitter<MessageFromExt>();
 	onMessage = this.onMessageSource.event;
+
+	private ipc: TCP;
 
 	//may not actually exist, used for initializing new testeditor to selected TC
 	openTest?: number;
@@ -25,22 +35,33 @@ export default class App {
 		cases: Object.fromEntries(Object.entries(this.cases.cases).map(([k,v])=>[k,v.tc])),
 		checker: this.cases.checker,
 		checkers: Object.keys(this.cases.checkers),
-		openTest: this.openTest, runningTest: this.cases.runningTest,
+		openTest: this.openTest, run: this.cases.run,
 		openFile: this.openFile?.path ?? null,
-		order: this.cases.tcOrder
+		order: this.cases.order,
+		testSets: this.ts.sets, currentTestSet: this.ts.current
 	});
 
-	handleErr = (x: Promise<void>) => x.catch((e) => {
+	async upTestSet(id?: number, ty?: "focus"|"delete") {
+		if (id!=undefined) {
+			if (ty=="delete") this.ipc.send({type: "deleteTestSet", id});
+			else this.ipc.send({type: "testSetChange", id, name: this.ts.sets[id], focus: ty=="focus"});
+		}
+
+		this.send({type: "updateTestSets", current: this.ts.current, sets: this.ts.sets});
+		await this.ctx.globalState.update("testsets", this.ts);
+	}
+
+	handleErr(e: any) {
 		console.error(e);
 		this.log.error(e);
 		if (e instanceof Error) {
 			window.showErrorMessage(`Error: ${e.message}`);
 		}
-	});
+	};
 
 	handleMsg(msg: MessageToExt) {
 		// console.log("received", msg);
-		this.handleErr((this.reducers[msg.type] as (x: typeof msg) => Promise<void>)(msg));
+		(this.reducers[msg.type] as (x: typeof msg) => Promise<void>)(msg).catch((e)=>this.handleErr(e));
 	}
 
 	async chooseCppFile(name: string) {
@@ -74,11 +95,63 @@ export default class App {
 		}
 	}
 
+	needsReload: boolean=false;
+
+	async deleteTestSet(i: number, ipc: boolean) {
+		delete this.ts.sets[i];
+		if (this.ts.current==i) {
+			const rest = Object.keys(this.ts.sets).map(Number);
+			if (rest.length>0) this.ts.current=rest[0];
+			else {
+				this.ts.current=this.ts.nextId;
+				this.ts.sets[this.ts.nextId]="Default";
+				await this.upTestSet(this.ts.nextId++);
+			}
+			
+			await this.cases.loadTestSet(this.ts.current, false);
+		}
+
+		if (ipc) await this.upTestSet(i, "delete");
+	}
+
 	constructor(public ctx: ExtensionContext, public log: LogOutputChannel) {
 		log.info("Initializing...");
 		this.testEditor.app = this;
+		this.ts = ctx.globalState.get<AllTestSets>("testsets") ?? {
+			nextId: 1, current: 0, sets: {[0]: "Default"}
+		};
 
-		this.cases = new TestCases(ctx, log, (x)=>this.send(x));
+		this.toDispose.push(window.onDidChangeWindowState((e) => {
+			if (e.active && this.needsReload) {
+				this.cases.loadTestSet(this.cases.setId, false).catch(e=>this.handleErr(e));
+				this.needsReload=false;
+			}
+		}));
+
+		this.cases = new TestCases(ctx, log, (x)=>this.send(x), this.ts.current);
+
+		this.ipc = new TCP(this.ctx, this.handleErr, log);
+		this.ipc.start().catch((e)=>this.handleErr(e));
+
+		this.toDispose.push(this.ipc.recv((msg) => (async ()=>{
+			if (msg.type=="testSetChange") {
+				this.ts.sets[msg.id] = msg.name;
+				if (msg.id>=this.ts.nextId) this.ts.nextId=msg.id+1;
+
+				//am i crazy?
+				if (msg.id==this.cases.setId) {
+					if (window.state.active)
+						await this.cases.loadTestSet(this.cases.setId, false);
+					else this.needsReload=true;
+				} else if (msg.focus) {
+					await this.cases.loadTestSet(msg.id, true);
+				}
+
+				await this.upTestSet();
+			} else if (msg.type=="deleteTestSet") {
+				await this.deleteTestSet(msg.id,false);
+			}
+		})().catch((e)=>this.handleErr(e))));
 		
 		this.toDispose.push(
 			this.testEditor, this.cases,
@@ -90,7 +163,7 @@ export default class App {
 			})
 		);
 
-		this.handleErr(this.cases.init());
+		this.cases.init().catch((e)=>this.handleErr(e));
 
 		this.toDispose.push(window.onDidChangeActiveTextEditor(()=>this.checkActive()));
 		this.checkActive();
@@ -106,24 +179,57 @@ export default class App {
 
 		const app=this;
 		this.reducers = {
+			async createTestSet() {
+				const name = await window.showInputBox({
+					title: "Create testset",
+					prompt: "Choose a name",
+					validateInput(v) {
+						if (v.length==0) return "Empty name is not allowed";
+						else if (v.length>25) return "That's too long!";
+						return null;
+					}
+				});
+
+				if (name==undefined) return;
+
+				app.ts.sets[app.ts.nextId]=name;
+				app.ts.current=app.ts.nextId;
+				await app.cases.loadTestSet(app.ts.nextId, true);
+				await app.upTestSet(app.ts.nextId++);
+			},
+			async renameTestSet({name}) {
+				app.ts.sets[app.ts.current]=name;
+				await app.upTestSet(app.ts.current);
+			},
+			async switchTestSet({i}) {
+				app.ts.current=i;
+				await app.cases.loadTestSet(i, true);
+				await app.upTestSet();
+			},
+			async deleteTestSet({i}) {
+				await app.deleteTestSet(i,true);
+			},
+			async runAll() {
+				const is = Object.keys(app.cases.cases).map(Number);
+				if (is.length==0) throw new Error("No test cases to run");
+				if (app.openFile==null) await this.setProgram({type:"setProgram",clear:false});
+				if (app.openFile==null) return;
+				app.cases.runMany(is, app.openFile.path);
+			},
 			async moveTest({a,b}) { app.cases.moveTest(a,b); },
 			async importTests() { app.cases.importCases(); },
 			async createTestCase() { await app.cases.createTest(); },
-			async removeTestCase({i}) {
-				if (i) app.cases.removeTest(i);
-				else Object.keys(app.cases.cases).forEach(i=>app.cases.removeTest(Number(i)));
-			},
+			async removeTestCase({i}) { app.cases.removeTest(i); },
 			async testCaseInput({inp}) {
-				if (app.cases.runningTest==undefined || !(app.cases.runningTest in app.cases.inputs))
+				if (app.cases.run.runningTest==undefined || !(app.cases.run.runningTest in app.cases.inputs))
 					throw new Error("Can't input; program is not running");
-				app.cases.inputs[app.cases.runningTest].fire(inp);
+				app.cases.inputs[app.cases.run.runningTest].fire(inp);
 			},
 			async runTestCase({i, dbg}) {
 				if (app.openFile==null) await this.setProgram({type:"setProgram",clear:false});
 				if (app.openFile==null) return;
 
 				app.cases.runTest(i, dbg, app.openFile.path);
-
 			},
 			async setProgram({clear}) {
 				if (clear) {
@@ -142,7 +248,8 @@ export default class App {
 				app.cases.upTestCase(i);
 			},
 			async cancelRun({i}) {
-				app.cases.cases[i].cancel?.cancel();
+				if (i!=undefined) app.cases.cases[i].cancel?.cancel();
+				else app.cases.runAllCancel.cancel?.cancel();
 			},
 			async setChecker({checker}) {
 				if (checker!=null) {
@@ -159,8 +266,8 @@ export default class App {
 				app.cases.cfg=cfg;
 				app.cases.upCfg();
 			},
-			async openFile({path}) {
-				await commands.executeCommand("vscode.open", Uri.file(path));
+			async openFile({path, inOS}) {
+				await commands.executeCommand(inOS ? "revealFileInOS" : "vscode.open", Uri.file(path));
 			},
 			async readSource({i}) {
 				app.cases.reloadTestSource(i);

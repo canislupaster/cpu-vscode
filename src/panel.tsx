@@ -1,16 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { useTestCases, useTestOutput } from "./testcase";
-import { render, useMessage, Text, Textarea, Input, IconButton, Icon, send, FileName, Card, Divider } from "./ui";
-import { InitState, MessageFromExt, RunCfg, TestCase, TestResult } from "./shared";
+import { useTestCases } from "./testcase";
+import { render, useMessage, Text, Textarea, IconButton, Icon, send, FileName, Card, Divider } from "./ui";
+import { InitState, MessageFromExt, RunCfg } from "./shared";
 
 type Message = { which: "input"|"user"|"stdout"|"stderr"|"judge", txt: string };
 const totalTxtLimit = 100*1024;
 
 declare const init: InitState;
-
-function Messages({msgs}: {msgs: Message[]}) {
-
-}
 
 function InputBar({onAdd, disabled}: {onAdd: (x: Message)=>void, disabled?: boolean}) {
 	const [v, setV] = useState("");
@@ -51,12 +47,20 @@ type TermState = {
 };
 
 function App() {
-	const [runningI, setRunningI] = useState<number|undefined>(init.runningTest);
 	const [msgs, setMsgs] = useState<[Message[],number]>([[],0]);
-	const [state, setState] = useState<TermState>({i:init.runningTest??null,inputPath:null,input:null,runCfg:init.cfg});
-	const preRef = useRef<HTMLPreElement>(null);
 
 	const tcs = useTestCases();
+	const runningI = tcs.run.runningTest;
+
+	const [state, setState] = useState<TermState>({
+		i: runningI??null,
+		inputPath: null,
+		input: null,
+		runCfg: init.cfg
+	});
+
+	const preRef = useRef<HTMLPreElement>(null);
+
 	const cond = runningI && tcs.cases[runningI]?.cancellable==true;
 	useEffect(() => {
 		if (cond) {
@@ -70,8 +74,10 @@ function App() {
 		const ns = [...xs,x];
 		total += x.txt.length;
 		let i=0;
-		while (total>totalTxtLimit)
-			total-=ns[i].txt.length, i++;
+		while (total>totalTxtLimit) {
+			total-=ns[i].txt.length;
+			i++;
+		}
 
 		if (i>0) {
 			if (totalTxtLimit==total) return [ns.slice(i), totalTxtLimit];
@@ -106,8 +112,7 @@ function App() {
 	}, [msgs, fixScroll])
 
 	useMessage((x) => {
-		if (x.type=="runTest") setRunningI(x.i);
-		else if (x.type=="testCaseStream") addMsg(x);
+		if (x.type=="testCaseStream") addMsg(x);
 		else if (x.type=="testCaseRead" && x.which=="inFile" && x.i==state.i)
 			setState(s=>({...s, input: x}));
 	}, [state.i]);

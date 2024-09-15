@@ -1,9 +1,9 @@
-import { commands, ExtensionContext, window, Event, WebviewView, WebviewViewResolveContext, CancellationToken,Disposable, Uri, WebviewViewProvider, EventEmitter, workspace } from "vscode";
+import { commands, ExtensionContext, window, Disposable, EventEmitter } from "vscode";
 import { enableHotReload, hotRequire } from "@hediet/node-reload";
 import App from "./main";
 import { join } from "path";
 import { FileChangeInfo, watch } from "fs/promises";
-import { InitState, MessageFromExt } from "./shared";
+import { MessageFromExt } from "./shared";
 import { CPUWebviewProvider, exists } from "./util";
 
 declare const WATCH: boolean;
@@ -28,7 +28,7 @@ export function activate(ctx: ExtensionContext) {
 
 	const initApp = (x: typeof App) => {
 		const app = new x(ctx, log);
-		activity.app=app, panel.app=app;
+		activity.app=app; panel.app=app;
 		return [app.onMessage((x)=>onMessage.fire(x)), app];
 	};
 
@@ -46,21 +46,26 @@ export function activate(ctx: ExtensionContext) {
 			);
 			
 			let unseen: null|Disposable=null;
-			ctx.subscriptions.push({dispose() {unseen?.dispose();}});
+			let tm: NodeJS.Timeout|null=null;
+			ctx.subscriptions.push({dispose() {
+				unseen?.dispose();
+				if (tm!=null) clearTimeout(tm);
+			}});
+
+			const act = () => {
+				log.info("reloading webviews");
+				if (tm) clearTimeout(tm);
+				tm=setTimeout(()=>commands.executeCommand("workbench.action.webview.reloadWebviewAction"), 500);
+			};
 
 			while (true) {
 				const [x,i] = await Promise.race(unresolved);
 				unresolved[i] = watchers[i].next().then(v=>[v.value, i]);
 
-				const act = () => {
-					log.info(`${x.filename} changed, reloading webviews`);
-					commands.executeCommand("workbench.action.webview.reloadWebviewAction");
-				};
-
+				log.info(`${x.filename} changed`);
 				if (window.state.focused) {
 					act();
 				} else if (unseen==null) {
-					log.info(`${x.filename} changed, waiting for focus`);
 					unseen=window.onDidChangeWindowState((e)=>{
 						if (e.focused) {
 							unseen!.dispose();

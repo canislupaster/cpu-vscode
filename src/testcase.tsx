@@ -1,11 +1,11 @@
 //ok fuck esbuild is so crappy or something, react needs to be included for <></> to work
 import React, { useEffect, useRef, useState } from "react";
-import { InitState, TestCase, TestOut } from "./shared";
-import { IconButton, send, useMessage, Text, Icon, Button, Card, Textarea, verdictColor, FileName } from "./ui";
-import {defaultKeymap, history, historyKeymap} from "@codemirror/commands"
+import { InitState, RunState, TestCase, testErr, TestOut, TestResult } from "./shared";
+import { IconButton, send, useMessage, Text, Icon, Button, Card, Textarea, verdictColor, FileName, Alert, HiddenInput, Dropdown, DropdownPart } from "./ui";
+import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
 import { crosshairCursor, drawSelection, dropCursor, EditorView, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers, rectangularSelection, ViewUpdate } from "@codemirror/view";
-import { EditorState, Text as CMText, ChangeSpec, ChangeSet, Extension } from "@codemirror/state";
+import { EditorState, Text as CMText, ChangeSet, Extension } from "@codemirror/state";
 import { unifiedMergeView } from "@codemirror/merge";
 
 declare const init: InitState;
@@ -27,7 +27,7 @@ export function useTestSource(i: number) {
 		if (msg.type=="testCaseRead" && msg.i==i) setRes(x=>{
 			const ns = {...x};
 			const y = {value: msg.source, init: true};
-			msg.which=="inFile" ? ns.input=y : ns.answer=y;
+			if (msg.which=="inFile") ns.input=y; else ns.answer=y;
 			return ns;
 		});
 	});
@@ -48,10 +48,12 @@ export function useTestOutput(i: number) {
 export function useTestCases() {
 	const [tcs, setTcs] = useState<Record<number,TestCase>>(init.cases);
 	const [ordered, setOrder] = useState<number[]>(init.order);
+	const [run, setRun] = useState<RunState>(init.run);
 
 	const [state, setState] = useState({
 		cfg: init.cfg, checker: init.checker, checkers: init.checkers,
-		openTest: init.openTest, openFile: init.openFile
+		openTest: init.openTest, openFile: init.openFile,
+		testSets: init.testSets, currentTestSet: init.currentTestSet
 	});
 
 	useMessage((msg) => {
@@ -73,10 +75,12 @@ export function useTestCases() {
 			case "updateChecker": setState(s=>({...s, checker: msg.checker, checkers: msg.checkers})); break;
 			case "openTest": setState(s=>({...s, openTest: msg.i})); break;
 			case "updateProgram": setState(s=>({...s, openFile: msg.path})); break;
+			case "updateRunState": setRun(msg.run); break;
+			case "updateTestSets": setState(s=>({...s, currentTestSet: msg.current, testSets: msg.sets})); break;
 		}
 	});
 
-	return {...state, cases: tcs, ordered};
+	return {...state, cases: tcs, ordered, run};
 }
 
 const mainTheme = (err: boolean) => EditorView.theme({
@@ -177,7 +181,7 @@ export function CMReadOnly({v, err, original}: {v: string, err?: boolean, origin
 	return <div ref={cmDiv} />;
 }
 
-export function TestCaseOutput({i, test, useCard, answer}: {i: number, test: TestCase, answer?: string, useCard?: boolean}) {
+export const TestCaseOutput = React.memo(({i, test, useCard, answer}: {i: number, test: TestCase, answer?: string, useCard?: boolean}) => {
 	const out = useTestOutput(i);
 	if (out==null) return <></>;
 
@@ -223,7 +227,7 @@ export function TestCaseOutput({i, test, useCard, answer}: {i: number, test: Tes
 
 	if (useCard) return <Card className="px-4 py-2" >{inner}</Card>;
 	else return inner;
-}
+});
 
 type TestCaseFileProps = {
 	i: number, source: string|null,
@@ -285,7 +289,7 @@ function TestCaseFileEditor({i,which,source}:TestCaseFileProps&{path:string,sour
 	return <div ref={cmDiv} />;
 }
 
-export function TestCaseFile({i, which, path, source}: TestCaseFileProps) {
+export const TestCaseFile = React.memo(({i, which, path, source}: TestCaseFileProps)=>{
 	return <>
 		<div className="flex flex-row justify-between" >
 			<Text v="md" >{which=="inFile" ? "Input" : "Answer"}</Text>
@@ -301,7 +305,7 @@ export function TestCaseFile({i, which, path, source}: TestCaseFileProps) {
 		{source!=null && path!=null ? <TestCaseFileEditor {...{i,which,path,source}} />
 		: <div className="flex flex-col p-3 w-full justify-center items-center gap-2" >
 			{path==null ? <>
-				<Text v="dim" >This file hasn't been initialized yet. Import something from disk or create an empty file.</Text>
+				<Text v="dim" >{"This file hasn't been initialized yet. Import something from disk or create an empty file."}</Text>
 				<div className="flex flex-row gap-2" >
 					<Button className="bg-blue-600"
 						onClick={()=>send({type: "setTestFile", i, which, ty: "create"})} >Create</Button>
@@ -313,6 +317,47 @@ export function TestCaseFile({i, which, path, source}: TestCaseFileProps) {
 			</>}
 		</div>}
 	</>;
+});
+
+export function TestSetStatus({testSets, currentTestSet}: {
+	testSets: Record<number,string>, currentTestSet: number
+}) {
+	return <Card className="flex flex-col sm:flex-row sm:gap-6 flex-wrap items-stretch md:items-center" >
+		<div className="flex flex-col gap-2" >
+			<div className="flex flex-row gap-1 items-center w-full" >
+				<Text v="bold" className="text-nowrap" >Test set:</Text>
+
+				<HiddenInput minLength={1} maxLength={25} className="overflow-x-clip w-full mb-0"
+					value={testSets[currentTestSet]}
+					onChange={(e)=>send({type: "renameTestSet", name: e.target.value})} />
+			</div>
+
+			<div className="flex flex-row gap-2 flex-wrap justify-center w-full" >
+				<Button icon={<Icon icon="trash" />}
+					onClick={()=>send({type:"deleteTestSet", i: currentTestSet})}
+					className="bg-rose-900" >Delete</Button>
+
+				<Dropdown trigger={
+					<Button icon={<Icon icon="arrow-swap" />} >Switch</Button>
+				} parts={[
+					...Object.entries(testSets).map(([k,v]): DropdownPart => {
+						const ki = Number(k);
+						return {type: "act", name: v, active: ki==currentTestSet, act(){
+							if (currentTestSet!=ki) send({type: "switchTestSet", i: ki});
+						}};
+					}),
+					{ type: "act", name: "Create testset",
+						act() {
+							//nextjs animates close of popover and then focuses document, which closes input box
+							//so we need some delay to ensure popover has closed
+							//(fuck)
+							setTimeout(()=>send({type: "createTestSet"}), 200);
+						}
+					}
+				]} />
+			</div>
+		</div>
+	</Card>;
 }
 
 export function SetProgram({tc}: {tc: ReturnType<typeof useTestCases>}) {
@@ -326,3 +371,24 @@ export function SetProgram({tc}: {tc: ReturnType<typeof useTestCases>}) {
 		}} >{tc.openFile==null ? "Choose program" : "Clear"}</Button>
 	</Card>;
 }
+
+export function TestErr({x,pre,noFile}: {x: Pick<TestCase,"err">,pre?:string,noFile?:boolean}) {
+	const e = testErr(x);
+
+	return e && <Alert bad title={e.title} txt={<>
+		{pre && <Text v="dim" >({pre}) </Text>}
+		{e.msg}
+		{!noFile && <FileName path={e.file} />}
+	</>} ></Alert>;
+}
+
+type RunStatTypes = "wallTime"|"cpuTime"|"mem"|"exitCode";
+type RunStatProps = Partial<Pick<TestResult,RunStatTypes>>;
+export const RunStats = ({x}: {x: RunStatProps}) => <Text v="dim" >
+	{[
+		`${x.wallTime!=null ? (x.wallTime/1000).toFixed(3) : "?"} s (wall)`,
+		`${x.cpuTime!=null ? (x.cpuTime/1000).toFixed(3) : "?"} s (cpu)`,
+		`${x.mem!=null ? Math.ceil(x.mem) : "?"} MB`,
+		...x.exitCode ? [`exit code ${x.exitCode}`] : []
+	].join(", ")}
+</Text>;

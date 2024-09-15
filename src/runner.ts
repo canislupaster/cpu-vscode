@@ -1,15 +1,12 @@
-import { CancellationToken, CustomExecution, EventEmitter, ExtensionContext, ProcessExecution, Task, tasks, TaskScope, Uri, window, workspace, Pseudoterminal, CancellationTokenSource, Terminal, extensions, commands, debug, Event, Disposable, LogOutputChannel, DebugSession, CancellationError } from "vscode";
-import {createHash, hash} from "node:crypto"
-import { mkdir, readFile, rm, stat } from "node:fs/promises";
-import { basename, dirname, extname, join } from "node:path";
-import { cfg, delay, exists } from "./util";
-import { ChildProcess, execFile, spawn } from "node:child_process";
-import { createReadStream, createWriteStream, write } from "node:fs";
+import { CancellationToken, EventEmitter, ExtensionContext, ProcessExecution, Task, tasks, TaskScope, Uri, workspace, extensions, debug, Event, Disposable, LogOutputChannel, DebugSession, CancellationError, TaskExecution } from "vscode";
+import { createHash } from "node:crypto";
+import { mkdir, readFile, rm } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
+import { cancelPromise, cfg, delay, exists } from "./util";
+import { execFile, spawn } from "node:child_process";
+import { createReadStream, createWriteStream } from "node:fs";
 import pidusage from "pidusage";
-import { PassThrough } from "node:stream";
-import { createTerminal, terminal } from "terminal-kit";
-import { promisify } from "node:util";
-import { BaseLanguageClient, DidChangeConfigurationNotification, NotificationType, RequestType } from "vscode-languageclient";
+import { BaseLanguageClient, DidChangeConfigurationNotification } from "vscode-languageclient";
 import { CompileError, RunCfg, RunError, TestCase, TestResult } from "./shared";
 
 //https://github.com/clangd/vscode-clangd/blob/master/api/vscode-clangd.d.ts
@@ -20,7 +17,7 @@ type CompileRequest = {
 	file: string, cached: boolean,
 	type: "fast"|"debug",
 	testlib: boolean,
-	cancel: CancellationToken
+	stop: CancellationToken
 };
 
 type Cache = {
@@ -33,7 +30,7 @@ export type Test = {
 	tc: TestCase, dbg: boolean,
 	onOutput?: (x: string, which: "stderr"|"stdout"|"judge")=>void,
 	onInput?: Event<string>,
-	cancel: CancellationTokenSource
+	stop: CancellationToken
 }&RunCfg;
 
 type Program = {
@@ -127,7 +124,7 @@ export class Runner {
 			await rm(join(this.cache.dir, ent), {force: true});
 		}
 
-		this.cache.entries=[], this.cache.dir=this.getBuildDir();
+		this.cache.entries=[]; this.cache.dir=this.getBuildDir();
 		await this.updateCache();
 	}
 
@@ -144,7 +141,7 @@ export class Runner {
 		return folder ?? dirname(file);
 	}
 
-	async compile({file,cached,type,testlib,cancel}: CompileRequest): Promise<string|null> {
+	async compile({file,cached,type,testlib,stop}: CompileRequest): Promise<string> {
 		if (!workspace.isTrusted) throw new CompileError("Workspace is not trusted", file);
 		if (!exists(file)) throw new CompileError("Program not found", file);
 
@@ -185,6 +182,7 @@ export class Runner {
 		if (hashStr in this.activeCompilations)
 			await this.activeCompilations[hashStr];
 
+		let exec: TaskExecution;
 		const doCompile = async () => {
 			const path = join(buildDir,hashStr);
 			const cacheI = this.cache.entries.indexOf(hashStr);
@@ -229,19 +227,14 @@ export class Runner {
 				}
 			}));
 
-			const exec = await tasks.executeTask(task);
+			exec = await tasks.executeTask(task);
 			//um depending on how this is executed ig task could end before below, not sure how vscode queues the task and shit or why the above is a promise.
 			const res = await Promise.race([
-				delay(60_000).then((x):"timeout"=>"timeout"),
-				new Promise(cancel.onCancellationRequested).then((_):"cancelled"=>"cancelled"),
-				prom
+				delay(60_000).then(():"timeout"=>"timeout"),
+				cancelPromise(stop), prom
 			]);
 
-			if (res=="cancelled") {
-				exec.terminate();
-				return null;
-			} else if (res=="timeout") {
-				exec.terminate();
+			if (res=="timeout") {
 				throw new CompileError(`Compilation of ${name} timed out`, file);
 			} else if (res!=0 || !exists(path)) {
 				throw new CompileError(`Failed to compile ${name}`, file);
@@ -258,13 +251,13 @@ export class Runner {
 			return path;
 		};
 
-		const prom = doCompile();
+		const prom = doCompile().finally(()=>exec?.terminate());
 		this.activeCompilations[hashStr] = prom.then(()=>{}).catch(()=>{});
 		return await prom;
 	}
 
-	async runOnce({
-		output,prog,checker,tc,dbg,cancel,onInput,onOutput,tl,ml,eof,disableTl
+	async run({
+		output,prog,checker,tc,dbg,stop,onInput,onOutput,tl,ml,eof,disableTl
 	}: Test): Promise<TestResult|null> {
 		tl*=1000; // in ms
 		let pid:number|null=null;
@@ -278,15 +271,20 @@ export class Runner {
 
 		if (!workspace.isTrusted) throw runerr("Workspace is not trusted");
 
+		const cbs: Disposable[]=[];
+		let cpuTime:number|null=null, mem:number|null=null, wallTime: number|null=null,
+			dbgSession: DebugSession|null=null, dbgStarted: boolean=false;
+
 		const errEvent = new EventEmitter<RunError>();
 		const limitExceeded = new EventEmitter<"ML"|"TL">();
-		const stop = cancel.token;
-		let cpuTime:number|null=null, mem:number|null=null, wallTime: number|null=null,
-			cbs: Disposable[]=[], dbgSession: DebugSession|null=null, dbgStarted: boolean=false;
+		cbs.push(errEvent, limitExceeded);
 
 		const cancelPromise = new Promise<void>(stop.onCancellationRequested).then(()=>{
 			throw new CancellationError();
 		});
+
+		let stopUsageLoop = false;
+
 		const onErrorPromise = new Promise<RunError>(errEvent.event).then(x=>{ throw x; });
 		let debugSessionEndPromise = Promise.resolve();
 		const timeout = async (x: number, err: string) => {
@@ -311,7 +309,7 @@ export class Runner {
 
 				cbs.push(debug.onDidStartDebugSession((x)=>{
 					if (!dbgStarted) {
-						dbgSession=x, dbgStarted=true;
+						dbgSession=x; dbgStarted=true;
 						log("Debug session started");
 					}
 				}));
@@ -340,12 +338,12 @@ export class Runner {
 			}
 
 			(async () => {
-				while (!stop.isCancellationRequested) {
+				while (!stopUsageLoop) {
 					try {
 						const usage = await pidusage(cp.pid);
-						wallTime=usage.elapsed, cpuTime=usage.ctime, mem=usage.memory/1024/1024;
+						wallTime=usage.elapsed; cpuTime=usage.ctime; mem=usage.memory/1024/1024;
 
-						if (!disableTl && cpuTime>tl) limitExceeded.fire("TL");
+						if (!disableTl && wallTime>tl) limitExceeded.fire("TL");
 						else if (mem>ml) limitExceeded.fire("ML");
 
 						await delay(150);
@@ -372,10 +370,10 @@ export class Runner {
 					await Promise.race([ debugSessionEndPromise, cancelPromise, onErrorPromise ]);
 				}
 
-				close();
+				cp.dispose();
 			}
 
-			const ret = (v: TestResult["verdict"], j?: string|null): TestResult =>
+			const ret = (v: TestResult["verdict"]): TestResult =>
 				({verdict: v, wallTime, cpuTime, mem, exitCode: cp.exitCode});
 
 			if (res=="ML" || res=="TL") return ret(res);
@@ -384,7 +382,7 @@ export class Runner {
 			if (tc.inFile && tc.ansFile) {
 				log("Checking output...");
 				const x = execFile(checker, [tc.inFile, output, tc.ansFile], (err, stdout, stderr) => {
-					let jout = `Checker exited with code ${x.exitCode}`;
+					let jout = x.exitCode!=null ? `Checker exited with code ${x.exitCode}` : `Checker was killed`;
 					if (stdout.length>0) jout+=`\n${stdout}`;
 					if (stderr.length>0) jout+=`\n${stderr}`;
 
@@ -415,7 +413,7 @@ export class Runner {
 			if (e instanceof CancellationError) return null;
 			throw e;
 		} finally {
-			cancel.cancel();
+			stopUsageLoop=true;
 			errEvent.dispose();
 			if (dbg && dbgSession) {
 				log("Stopping debugger");

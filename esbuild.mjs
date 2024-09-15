@@ -26,7 +26,7 @@ async function main() {
   };
 
   await start("npx tsc --project ./tsconfig.json", "--watch --preserveWatchOutput", "tsc");
-  await start("npx tailwindcss -i ./src/main.css -o ./src/output.css", "--watch", "tailwind");
+  await start("npx tailwindcss -i ./src/main.css -o ./out/output.css", "--watch", "tailwind");
 
   /**
    * @type {import('esbuild').Plugin}
