@@ -15,3 +15,6 @@ testlib
 !testlib/checkers
 !testlib/testlib.h
 !testlib/LICENSE
+tailwind.config.js
+.gitmodules
+esbuild.mjs

@@ -4,11 +4,11 @@
 	"compilerOptions": {
 		"jsx": "preserve",
     "esModuleInterop": true,
-		"module": "ESNext",
+		"module": "ES2022",
 		"moduleResolution": "Node",
     "incremental": true,
 		"noEmit": true,
-		"target": "ESNext",
+		"target": "ES2022",
 		"outDir": "out",
     "skipLibCheck": true,
 		"lib": [

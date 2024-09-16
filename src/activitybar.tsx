@@ -1,7 +1,7 @@
 import { RunState, TestCaseI, TestResult } from "./shared";
 import { Anchor, AppTooltip, Button, Card, Divider, DragHandle, dragTCs, HiddenInput, Icon, IconButton, Loading, render, send, Tag, Text, verdictColor } from "./ui";
 import { Spinner } from "@nextui-org/spinner";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import React from "react";
 import { TestCaseFile, TestCaseOutput, useTestSource, useTestCases, SetProgram, RunStats, TestErr, TestSetStatus } from "./testcase";
 import { Collapse } from "react-collapse";
@@ -17,12 +17,12 @@ function SmallTestCaseEditor({i,test}: {i: number}&TestCaseI) {
 	</div>;
 }
 
-const SmallTestCase = React.memo(({test,i}: TestCaseI)=>{
+const SmallTestCase = React.memo(({test,i,open: openOpt,setOpen}: TestCaseI&{open?: boolean,setOpen:(x: boolean)=>void})=>{
 	const run = (dbg: boolean, stress?: "run"|"generator") => () =>
 		send({type: "runTestCase", i, dbg, stress: stress==undefined ? "none" : stress});
 
+	const open = openOpt ?? (test.tmpAns && test.tmpIn);
 	const d = {disabled: test.cancellable!=null};
-	const [open, setOpen] = useState(test.tmpAns && test.tmpIn);
 
 	return <Card className="pb-0 px-0 gap-0" >
 		<div className="px-3 flex flex-row items-center gap-2 mb-2" >
@@ -137,6 +137,15 @@ const RunAllStatus = React.memo(({runAll}: {runAll: RunState["runAll"]})=>{
 function App() {
 	const tc = useTestCases();
 	const [order,drag] = dragTCs(tc.ordered);
+	const [opens, setOpens] = useState<Record<number,boolean>>({});
+	const eachSetOpen = useMemo(() => {
+		return order.map((k): [number, boolean|undefined, (x: boolean)=>void]=>
+			[k, opens[k], (x: boolean)=>setOpens({...opens, [k]: x})]);
+	}, [order,opens]);
+
+	const setAllOpen = (x:boolean)=>()=>{
+		setOpens(Object.fromEntries(Object.keys(tc.cases).map(Number).map(k=>[k,x])));
+	};
 
 	return <div className="flex flex-col gap-2 p-3" >
 		<TestSetStatus testSets={tc.testSets} currentTestSet={tc.currentTestSet} />
@@ -155,9 +164,17 @@ function App() {
 
 		<Divider/>
 
+		<div className="flex flex-row gap-4 justify-between" >
+			<Text v="bold" >Tests</Text>
+			<div className="flex flex-row gap-2 justify-end" >
+				<IconButton icon={<Icon icon="expand-all" />} onClick={setAllOpen(true)} />
+				<IconButton icon={<Icon icon="collapse-all" />} onClick={setAllOpen(false)} />
+			</div>
+		</div>
+
 		<div ref={drag} className="flex flex-col gap-2" >
-			{order.map(k=>
-				<SmallTestCase test={tc.cases[k]} i={Number(k)} key={k} />
+			{eachSetOpen.map(([k,open,setOpen])=>
+				<SmallTestCase test={tc.cases[k]} i={Number(k)} key={k} open={open} setOpen={setOpen} />
 			)}
 		</div>
 		

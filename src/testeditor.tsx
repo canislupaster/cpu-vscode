@@ -105,7 +105,7 @@ const TestCase = React.memo(({test,i,open,focus}: TestCaseI&{open: boolean,focus
 			</div>
 		</Collapse>
 
-		<div className="flex flex-col gap-1 p-3 pb-0 pt-2 overflow-x-scroll" >
+		<div className="flex flex-col gap-1 p-3 pb-0 pt-2" >
 			{test.inFile && <div className="inline" >
 				<Text v="dim" >Input: </Text> <FileName path={test.inFile} />. {detach("inFile")}
 			</div>}

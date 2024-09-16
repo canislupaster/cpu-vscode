@@ -26,8 +26,8 @@
 @tailwind utilities;
 
 html, body {
-	width: 100vw !important;
-	height: 100vh !important;
+	width: 100% !important;
+	height: 100% !important;
 	padding: 0 !important;
 	margin: 0 !important;
 }

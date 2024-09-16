@@ -101,7 +101,7 @@ const selectStyle: ClassNamesConfig<unknown,boolean> = {
 	menu: () => "text-white absolute w-full",
 	multiValue: () => "bg-zinc-700 text-white px-2 py-0.5 rounded-md",
 	multiValueLabel: () => "text-white hover:bg-zinc-700",
-	valueContainer: () => "flex flex-row gap-1 overflow-x-scroll",
+	valueContainer: () => "flex flex-row gap-1 overflow-x-auto",
 	multiValueRemove: () => "text-white hover:bg-zinc-700 hover:text-white ml-1",
 	indicatorSeparator: () => "mx-1 h-full bg-zinc-600",
 	input: () => "text-white",
@@ -315,9 +315,9 @@ export function useMessage(handle: (x: MessageFromExt)=>void, deps?: unknown[]) 
 
 export function useChooseFile(key: string, chosen: (x: string)=>void) {
 	useMessage((x) => {
-		if (x.type=="cppFileChosen" && x.key==key) chosen(x.path);
+		if (x.type=="sourceFileChosen" && x.key==key) chosen(x.path);
 	});
-	return (name: string)=>send({type: "chooseCppFile", key, name});
+	return (name: string)=>send({type: "chooseSourceFile", key, name});
 }
 
 export function verdictColor(verdict: TestResult["verdict"]) {
@@ -342,12 +342,14 @@ export function expandedVerdict(verdict: TestResult["verdict"]) {
 
 export function FileName({path, children, ...props}: {path: string}&Partial<React.ComponentProps<typeof AppTooltip>>) {
 	//i know, i know...
-	const idx = Math.max(path.lastIndexOf("\\\\"), path.lastIndexOf("/"));
-	return <AppTooltip content={<div className="flex flex-col max-w-full p-2 py-4 gap-2 items-start" >
-		<div className="overflow-x-auto max-w-80 break-words text-gray-300" >
-			{path}
+	//display only
+	const idx = Math.max(path.lastIndexOf("\\"), path.lastIndexOf("/"));
+	return <AppTooltip content={<div className="flex flex-col max-w-80 p-2 py-4 pt-2 gap-2 items-start" >
+		<Text v="bold" >{path.slice(idx+1)}</Text>
+		<div className="max-w-full break-words text-gray-300 px-2" >
+			Full path: {path}
 		</div>
-		<div className="flex flex-row gap-2" >
+		<div className="flex flex-col gap-2 w-full" >
 			<Button onClick={()=>send({type:"openFile",path})} >Open in VSCode</Button>
 			<Button onClick={()=>send({type:"openFile",path,inOS:true})} >Reveal in Explorer/Finder</Button>
 		</div>

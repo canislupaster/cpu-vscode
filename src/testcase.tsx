@@ -353,7 +353,7 @@ export const TestSetStatus = React.memo(({testSets, currentTestSet}: {
 				<Text v="bold" className="text-nowrap" >Test set:</Text>
 
 				{cur.group ? <Text>{cur.name}</Text> : <HiddenInput minLength={1} maxLength={25}
-					className="flex-1 overflow-x-clip"
+					className="flex-1 overflow-x-clip w-0"
 					value={cur.name}
 					onChange={(e)=>send({type: "renameTestSet", name: e.target.value})} />}
 			</div>

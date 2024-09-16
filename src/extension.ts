@@ -1,10 +1,10 @@
-import { commands, ExtensionContext, window, Disposable, EventEmitter } from "vscode";
+import { commands, ExtensionContext, window, Disposable, EventEmitter, CancellationTokenSource, CancellationError } from "vscode";
 import { enableHotReload, hotRequire } from "@hediet/node-reload";
 import App from "./main";
 import { join } from "path";
 import { FileChangeInfo, watch } from "fs/promises";
 import { MessageFromExt } from "./shared";
-import { CPUWebviewProvider, exists } from "./util";
+import { cancelPromise, CPUWebviewProvider, exists } from "./util";
 
 declare const WATCH: boolean;
 
@@ -52,6 +52,8 @@ export function activate(ctx: ExtensionContext) {
 				if (tm!=null) clearTimeout(tm);
 			}});
 
+			const cancel = new CancellationTokenSource();
+
 			const act = () => {
 				log.info("reloading webviews");
 				if (tm) clearTimeout(tm);
@@ -60,8 +62,12 @@ export function activate(ctx: ExtensionContext) {
 				}, 500);
 			};
 
-			while (true) {
-				const [x,i] = await Promise.race(unresolved);
+			log.info(`Starting watch for ${watchers.length} files`);
+			while (!cancel.token.isCancellationRequested) {
+				const [x,i] = await Promise.race([
+					...unresolved, cancelPromise(cancel.token)
+				]);
+
 				unresolved[i] = watchers[i].next().then(v=>[v.value, i]);
 
 				log.info(`${x.filename} changed`);
@@ -78,6 +84,8 @@ export function activate(ctx: ExtensionContext) {
 				}
 			}
 		})().catch(e=>{
+			if (e instanceof CancellationError) return;
+			if (e instanceof Error) log.error(e);
 			window.showErrorMessage(`Watcher failed with ${e}`);
 		});
 

@@ -4,29 +4,32 @@ import { Hono } from 'hono'
 import { AddressInfo } from "node:net";
 import { delay } from "./util";
 
-type InputConfiguration={
-  type: 'stdin' | 'file' | 'regex';
-  fileName?: string;
-  pattern?: string;
-};
+// type InputConfiguration={
+//   type: 'stdin' | 'file' | 'regex';
+//   fileName?: string;
+//   pattern?: string;
+// };
 
-type OutputConfiguration={
-  type: 'stdout' | 'file';
-  fileName?: string;
-};
+// type OutputConfiguration={
+//   type: 'stdout' | 'file';
+//   fileName?: string;
+// };
 
 type Task = {
 	name: string,
 	group: string,
-	url: string,
-	interactive: boolean,
-	memoryLimit: number,
-	timeLimit: number,
+	// url: string,
+	// interactive: boolean,
+	// memoryLimit: number,
+	// timeLimit: number,
 	tests: {input:string, output:string}[],
-	testType: "single"|"multiNumber",
-	input: InputConfiguration,
-	output: OutputConfiguration,
-	batch: {id: string, size: number}
+	// testType: "single"|"multiNumber",
+	// input: InputConfiguration,
+	// output: OutputConfiguration,
+	batch: {
+		// id: string,
+		size: number
+	}
 };
 
 export class Companion {
@@ -36,8 +39,28 @@ export class Companion {
 	event=this.evSrc.event;
 
 	private app=new Hono().post("/", async (c) => {
-		const json: Task = await c.req.json();
-		this.evSrc.fire(json);
+		const json: unknown = await c.req.json();
+
+		//very high quality validation!!
+		//typescript proved it
+		//just that pro 😎
+		if (typeof json!="object" || !json
+			|| !("name" in json) || !("group" in json) || !("tests" in json)
+			|| typeof json.name != "string" || typeof json.group!="string" || !Array.isArray(json.tests)
+			|| !("batch" in json) || typeof json.batch!="object" || !json.batch || !("size" in json.batch)
+			|| typeof json.batch.size!="number")
+			return c.json({status: "invalid"});
+
+		const task = {name: json.name, group: json.group, tests: [] as Task["tests"], batch: {size: json.batch.size}};
+		for (const x of json.tests as unknown[]) {
+			if (typeof x!="object" || !x || !("input" in x) || !("output" in x)
+				|| typeof x.input!="string" || typeof x.output!="string")
+				return c.json({status: "invalid"});
+
+			task.tests.push({input: x.input, output: x.output});
+		}
+
+		this.evSrc.fire(json as Task);
 		return c.json({status: "ok"});
 	}).get("/", async (c) => {
 		return c.json({status: "ok"});

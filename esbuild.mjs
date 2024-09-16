@@ -60,8 +60,8 @@ async function main() {
     bundle: true,
     outdir: "out",
     minify: production,
-    sourcemap: production ? undefined : "linked",
-    sourcesContent: false,
+    sourcemap: !production,
+    sourcesContent: !production,
     platform,
     loader: {
       ".ttf": "file",
@@ -80,10 +80,10 @@ async function main() {
     if (watch) {
       await a.watch();
     } else {
+      //OH FUCK DO NOT MOVE DISPOSE OUTSIDE OF ELSE
       await a.rebuild();
+      await a.dispose();
     }
-
-    await a.dispose();
   }));
 }
 

@@ -4,9 +4,9 @@ import { InitState, MessageFromExt, MessageToExt, TestSetMeta, TestSets } from "
 import { CBError, TestCases } from "./testcases";
 import { CPUWebviewProvider } from "./util";
 import { Companion } from "./companion";
+import { allExts } from "./languages";
 
-const cppExts = ["cpp","cxx","cc","c++"];
-const cppFileFilter: OpenDialogOptions["filters"] = { "C++ Source": cppExts };
+const codeFileFilter: OpenDialogOptions["filters"] = { "Source file": allExts };
 
 type AllTestSets = {
 	nextId: number,
@@ -70,10 +70,10 @@ export default class App {
 		(this.reducers[msg.type] as (x: typeof msg) => Promise<void>)(msg).catch((e)=>this.handleErr(e));
 	}
 
-	async chooseCppFile(name: string) {
+	async chooseSourceFile(name: string) {
 		const u = await window.showOpenDialog({
 			canSelectFiles: true,
-			filters: cppFileFilter,
+			filters: codeFileFilter,
 			title: `Choose ${name}`, openLabel: `Set ${name}`
 		});
 
@@ -91,7 +91,7 @@ export default class App {
 		if (this.openFile?.type!="file" && e?.document.uri.scheme=="file") {
 			const ext = extname(e.document.uri.fsPath);
 
-			if (cppExts.some(x=>ext.endsWith(x))) {
+			if (allExts.some(x=>ext.endsWith(x))) {
 				this.openFile={type:"last",path:resolve(e.document.fileName)};
 				this.send({type:"updateProgram", path:this.openFile.path});
 			}
@@ -121,7 +121,7 @@ export default class App {
 		if (clear) {
 			this.openFile=null;
 		} else {
-			const u = await this.chooseCppFile("program");
+			const u = await this.chooseSourceFile("program");
 			if (u==null) return;
 
 			this.openFile={type: "file", path: u};
@@ -152,7 +152,8 @@ export default class App {
 
 	lastFocus=Date.now();
 	constructor(public ctx: ExtensionContext, public log: LogOutputChannel) {
-		log.info("Initializing...");
+		log.info(`Initializing... extension uri: ${ctx.extensionUri.toString()}`);
+
 		this.testEditor.app = this;
 		this.ts = ctx.globalState.get<AllTestSets>("testsets") ?? {
 			nextId: 1, current: 0, sets: {[0]: {name: "Default"}}
@@ -307,7 +308,7 @@ export default class App {
 					if (!(checker in this.cases.checkers)) throw new Error("Checker not found");
 					this.cases.checker={type: "default", name: checker};
 				} else {
-					const u = await this.chooseCppFile("checker");
+					const u = await this.chooseSourceFile("checker");
 					if (u!=null) this.cases.checker = {type: "file", path: u};
 				}
 
@@ -364,9 +365,9 @@ export default class App {
 					await this.cases.setFile(i,which,undefined,ty=="create");
 				}
 			},
-			chooseCppFile: async ({key,name})=>{
-				const path = await this.chooseCppFile(name);
-				if (path) this.send({type: "cppFileChosen", key, path});
+			chooseSourceFile: async ({key,name})=>{
+				const path = await this.chooseSourceFile(name);
+				if (path) this.send({type: "sourceFileChosen", key, path});
 			},
 			createStress: async ({name, stress}) => {
 				await this.cases.createTest(name, {...stress, status: null});

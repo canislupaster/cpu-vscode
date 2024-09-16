@@ -1,16 +1,22 @@
 {
   "name": "cpu",
+  "publisher": "thomasqm",
   "displayName": "Competitive Programmers Union",
   "description": "A smoother competitive programming experience: test cases, debugging, stress testing and more",
   "version": "0.0.1",
   "icon": "resources/icon.png",
   "author": "Thomas Marlowe",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/canislupaster/cpu-vscode"
+  },
   "engines": {
     "vscode": "^1.93.0"
   },
   "categories": [
     "Other"
   ],
+  "extensionKind": [ "workspace" ],
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
@@ -34,11 +40,6 @@
     "configuration": {
       "title": "Competitive Programmers Union",
       "properties": {
-        "cpu.compiler": {
-          "type": "string",
-          "default": "",
-          "description": "C++ compiler path"
-        },
         "cpu.testDir": {
           "type": "string",
           "default": "",
@@ -49,53 +50,71 @@
           "default": "",
           "description": "Build directory"
         },
+        "cpu.runtime": {
+          "type": "object",
+          "additionalProperties": ["c++","java","python","rust"],
+          "description": "Per-language runtime paths",
+          "default": {}
+        },
+        "cpu.compiler": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "c++": {"type": "string"},
+            "java": {"type": "string"},
+            "python": {"type": "string"},
+            "rust": {"type": "string"}
+          },
+          "description": "Per-language compiler paths",
+          "default": {
+            "c++": "", "java": "", "python": "", "rust": ""
+          }
+        },
         "cpu.compileArgs.fast": {
           "description": "Compile args for running",
-          "type": "array",
-          "default": [
-            "-O2"
-          ],
-          "items": {
-            "type": "string"
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "c++": {"type": "string"},
+            "java": {"type": "string"},
+            "python": {"type": "string"},
+            "rust": {"type": "string"}
+          },
+          "default": {
+            "java": "", "python": "",
+            "c++": "-O2",
+            "rust": "-C opt-level=2"
           }
         },
         "cpu.compileArgs.debug": {
           "description": "Compile args for debugging",
-          "type": "array",
-          "default": [
-            "-Og",
-            "-D_GLIBCXX_DEBUG",
-            "-D_GLIBCXX_DEBUG_PEDANTIC",
-            "-fsanitize=address",
-            "-fsanitize=undefined",
-            "-fno-sanitize-recover",
-            "-fstack-protector"
-          ],
-          "items": {
-            "type": "string"
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "c++": {"type": "string"},
+            "java": {"type": "string"},
+            "python": {"type": "string"},
+            "rust": {"type": "string"}
+          },
+          "default": {
+            "java": "", "python": "",
+            "c++": "-Og -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -fsanitize=address -fsanitize=undefined -fno-sanitize-recover -fstack-protector",
+            "rust": "-C debuginfo=2 -C overflow-checks=on -C debug-assertions=on"
           }
         },
         "cpu.compileArgs.common": {
           "description": "Compile args for all configurations",
-          "type": "array",
-          "default": [
-            "-Wall",
-            "-Wreorder",
-            "-Wextra",
-            "-pedantic",
-            "-stdlib=libc++",
-            "-std=c++20",
-            "-Wl,-stack_size",
-            "-Wl,0x40000000",
-            "-Wshadow",
-            "-Wformat=2",
-            "-Wfloat-equal",
-            "-Wcast-qual",
-            "-Wcast-align",
-            "-g"
-          ],
-          "items": {
-            "type": "string"
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "c++": {"type": "string"},
+            "java": {"type": "string"},
+            "python": {"type": "string"},
+            "rust": {"type": "string"}
+          },
+          "default": {
+            "java": "", "python": "", "rust": "",
+            "c++": "-Wall -Wreorder -Wextra -pedantic -stdlib=libc++ -std=c++20 -Wl,-stack_size -Wl,0x40000000 -Wshadow -Wformat=2 -Wfloat-equal -Wcast-qual -Wcast-align -g"
           }
         }
       }

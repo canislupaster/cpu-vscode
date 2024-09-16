@@ -127,7 +127,7 @@ export class TestCases {
 		this.run.runAll={...tests?.runAll ?? {lastRun: null, err: null}, cancellable: null};
 		this.outputs={};
 
-		this.upTestCases([...is.union(new Set(Object.keys(this.cases).map(Number))).values()], false);
+		this.upTestCases([...new Set([...Object.keys(this.cases).map(Number),...is])], false);
 		this.upOrder();
 		this.upRun();
 	}
@@ -401,7 +401,14 @@ export class TestCases {
 		delete this.outputs[i];
 		this.send({type: "testCaseOutput", i});
 
-		const getO=()=>this.outputs[i] ?? (this.outputs[i]={stderr: "", stdout: "", path: outPath});
+		const getO=()=>{
+			if (tm==null) tm=setTimeout(()=>{
+				this.send({type: "testCaseOutput", i, out: this.outputs[i]});
+				tm=null;
+			}, 350);
+
+			return this.outputs[i] ?? (this.outputs[i]={stderr: "", stdout: "", path: outPath});
+		};
 
 		return {
 			dispose: ()=>{
@@ -409,7 +416,12 @@ export class TestCases {
 				this.send({type: "testCaseOutput", i, out: this.outputs[i]});
 			},
 			output: outPath,
-			onJudge: (x)=>getO().judge=x,
+			onJudge: (x)=>{
+				getO().judge=x;
+
+				if (this.run.runningTest==i)
+					this.send({type: "testCaseStream", which: "judge", txt: x});
+			},
 			onOutput: (x, which) => {
 				const o=getO();
 				if (o.stderr.length+o.stdout.length<this.maxOutputSize) {
@@ -425,11 +437,6 @@ export class TestCases {
 
 				if (this.run.runningTest==i)
 					this.send({type: "testCaseStream", which, txt: x});
-
-				if (tm==null) tm=setTimeout(()=>{
-					this.send({type: "testCaseOutput", i, out: o});
-					tm=null;
-				}, 350);
 			}
 		}
 	}

@@ -76,7 +76,7 @@ export type MessageToExt = {
 	name?: string,
 	stress: Omit<Stress,"status">
 } | {
-	type: "chooseCppFile", key: string, name: string
+	type: "chooseSourceFile", key: string, name: string
 } | {
 	type: "clearCompileCache"
 } | {
@@ -200,5 +200,5 @@ export type MessageFromExt = {
 	current: number,
 	sets: TestSets
 } | {
-	type: "cppFileChosen", key: string, path: string
+	type: "sourceFileChosen", key: string, path: string
 };
