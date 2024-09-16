@@ -1,9 +1,9 @@
 import { extname, resolve } from "path";
 import { ExtensionContext, LogOutputChannel, Uri, WebviewPanel, window, workspace, EventEmitter, ViewColumn, commands, OpenDialogOptions } from "vscode";
-import { InitState, MessageFromExt, MessageToExt } from "./shared";
-import { TestCases } from "./testcases";
+import { InitState, MessageFromExt, MessageToExt, TestSetMeta, TestSets } from "./shared";
+import { CBError, TestCases } from "./testcases";
 import { CPUWebviewProvider } from "./util";
-import { TCP } from "./ipc";
+import { Companion } from "./companion";
 
 const cppExts = ["cpp","cxx","cc","c++"];
 const cppFileFilter: OpenDialogOptions["filters"] = { "C++ Source": cppExts };
@@ -11,24 +11,25 @@ const cppFileFilter: OpenDialogOptions["filters"] = { "C++ Source": cppExts };
 type AllTestSets = {
 	nextId: number,
 	current: number,
-	sets: Record<number,string>
+	sets: TestSets
 };
+
+type Command = "cpu.debug"|"cpu.run"|"cpu.runAll";
 
 export default class App {
 	private toDispose: {dispose: ()=>void}[] = [];
 	cases: TestCases;
 	ts: AllTestSets;
 	private openTestEditor?: WebviewPanel;
-
-	private reducers: {[k in MessageToExt["type"]]: (msg: Extract<MessageToExt, {type: k}>)=>Promise<void>};
+	private commandHandler: {[k in Command]: ()=>Promise<void>};
+	private reducers: {[k in MessageToExt["type"]]: (msg: Omit<Extract<MessageToExt, {type: k}>,"type">)=>Promise<void>};
 	private onMessageSource = new EventEmitter<MessageFromExt>();
 	onMessage = this.onMessageSource.event;
-
-	private ipc: TCP;
 
 	//may not actually exist, used for initializing new testeditor to selected TC
 	openTest?: number;
 	openFile: {type:"last"|"file", path:string}|null=null;
+	companion: Companion;
 
 	getInitState = (): InitState => ({
 		cfg: this.cases.cfg,
@@ -38,29 +39,34 @@ export default class App {
 		openTest: this.openTest, run: this.cases.run,
 		openFile: this.openFile?.path ?? null,
 		order: this.cases.order,
-		testSets: this.ts.sets, currentTestSet: this.ts.current
+		testSets: this.ts.sets, currentTestSet: this.ts.current,
+
+		buildDir: this.cases.runner.getBuildDir(), testSetDir: this.cases.getTestsetDir()
 	});
 
-	async upTestSet(id?: number, ty?: "focus"|"delete") {
-		if (id!=undefined) {
-			if (ty=="delete") this.ipc.send({type: "deleteTestSet", id});
-			else this.ipc.send({type: "testSetChange", id, name: this.ts.sets[id], focus: ty=="focus"});
-		}
-
+	async upTestSet(mod: boolean=true) {
+		if (mod) this.ts.sets[this.ts.current].mod=Date.now();
 		this.send({type: "updateTestSets", current: this.ts.current, sets: this.ts.sets});
 		await this.ctx.globalState.update("testsets", this.ts);
 	}
 
-	handleErr(e: any) {
+	handleErr(e: unknown) {
+		if (e instanceof AggregateError) {
+			for (const a of e.errors.slice(0,10)) this.handleErr(a);
+			return;
+		}
+		
 		console.error(e);
-		this.log.error(e);
-		if (e instanceof Error) {
+		if (e instanceof Error) this.log.error(e);
+
+		if (e instanceof CBError) {
+			window.showErrorMessage(e.message);
+		} else if (e instanceof Error) {
 			window.showErrorMessage(`Error: ${e.message}`);
 		}
 	};
 
 	handleMsg(msg: MessageToExt) {
-		// console.log("received", msg);
 		(this.reducers[msg.type] as (x: typeof msg) => Promise<void>)(msg).catch((e)=>this.handleErr(e));
 	}
 
@@ -73,15 +79,12 @@ export default class App {
 
 		if (u==undefined || u.length!=1) return null;
 		if (u[0].scheme!="file") throw new Error("Selected C++ file is not on disk");
-		return u[0].fsPath;
+		return resolve(u[0].fsPath);
 	}
 
-	testEditor = new CPUWebviewProvider("testeditor", this.onMessage);
+	testEditor = new CPUWebviewProvider("testeditor", this.onMessage, ["testCaseStream"]);
 
-	send(x:MessageFromExt) {
-		// console.log("sending", x);
-		this.onMessageSource.fire(x);
-	};
+	send(x:MessageFromExt) { this.onMessageSource.fire(x); };
 
 	checkActive() {
 		const e = window.activeTextEditor;
@@ -97,73 +100,118 @@ export default class App {
 
 	needsReload: boolean=false;
 
-	async deleteTestSet(i: number, ipc: boolean) {
+	async deleteTestSet(i: number) {
 		delete this.ts.sets[i];
+		await this.cases.deleteTestSet(i);
+
 		if (this.ts.current==i) {
 			const rest = Object.keys(this.ts.sets).map(Number);
 			if (rest.length>0) this.ts.current=rest[0];
 			else {
 				this.ts.current=this.ts.nextId;
-				this.ts.sets[this.ts.nextId]="Default";
-				await this.upTestSet(this.ts.nextId++);
+				this.ts.sets[this.ts.nextId++]={name: "Default"};
 			}
 			
+			await this.upTestSet();
 			await this.cases.loadTestSet(this.ts.current, false);
 		}
-
-		if (ipc) await this.upTestSet(i, "delete");
 	}
 
+	async setProgram(clear: boolean) {
+		if (clear) {
+			this.openFile=null;
+		} else {
+			const u = await this.chooseCppFile("program");
+			if (u==null) return;
+
+			this.openFile={type: "file", path: u};
+		}
+
+		this.send({type:"updateProgram", path: this.openFile?.path ?? null});
+	}
+
+	async pickTest() {
+		const map = new Map<string,number>();
+		for (const k in this.cases.cases) {
+			const t = this.cases.cases[k];
+			let v = t.tc.name; let i=1;
+			while (map.has(v)) v=`${t.tc.name} (${i++})`;
+			map.set(v, Number(k));
+		}
+
+		const res = await window.showQuickPick([...map.keys()], {canPickMany: false});
+		if (res==undefined) return;
+		return map.get(res)!;
+	}
+
+	async handleRunDbgCmd(dbg: boolean) {
+		if (this.openTest==undefined) this.openTest=await this.pickTest();
+		if (this.openTest==undefined) return;
+		await this.reducers.runTestCase({i: this.openTest, dbg, stress: "none"});
+	};
+
+	lastFocus=Date.now();
 	constructor(public ctx: ExtensionContext, public log: LogOutputChannel) {
 		log.info("Initializing...");
 		this.testEditor.app = this;
 		this.ts = ctx.globalState.get<AllTestSets>("testsets") ?? {
-			nextId: 1, current: 0, sets: {[0]: "Default"}
+			nextId: 1, current: 0, sets: {[0]: {name: "Default"}}
 		};
 
-		this.toDispose.push(window.onDidChangeWindowState((e) => {
-			if (e.active && this.needsReload) {
-				this.cases.loadTestSet(this.cases.setId, false).catch(e=>this.handleErr(e));
-				this.needsReload=false;
-			}
-		}));
+		this.toDispose.push(window.onDidChangeWindowState((state) => {
+			if (!state.focused) return;
+			const sets = ctx.globalState.get<AllTestSets>("testsets");
+			if (!sets) return;
 
-		this.cases = new TestCases(ctx, log, (x)=>this.send(x), this.ts.current);
+			(async ()=>{
+				const newCurrent: TestSetMeta|undefined = sets.sets[this.ts.current];
 
-		this.ipc = new TCP(this.ctx, this.handleErr, log);
-		this.ipc.start().catch((e)=>this.handleErr(e));
+				//merge
+				this.ts={
+					...this.ts,
+					nextId: Math.max(sets.nextId, this.ts.nextId),
+					sets: {...this.ts.sets, ...sets.sets, [this.ts.current]: this.ts.sets[this.ts.current] }
+				};
 
-		this.toDispose.push(this.ipc.recv((msg) => (async ()=>{
-			if (msg.type=="testSetChange") {
-				this.ts.sets[msg.id] = msg.name;
-				if (msg.id>=this.ts.nextId) this.ts.nextId=msg.id+1;
-
-				//am i crazy?
-				if (msg.id==this.cases.setId) {
-					if (window.state.active)
-						await this.cases.loadTestSet(this.cases.setId, false);
-					else this.needsReload=true;
-				} else if (msg.focus) {
-					await this.cases.loadTestSet(msg.id, true);
+				if (newCurrent && (newCurrent.mod??0)>Math.max(this.lastFocus, this.ts.sets[this.ts.current].mod??0)) {
+					if (await window.showInformationMessage("Your current testset has changed in another window. Load changes?", "Reload testset") == "Reload testset") {
+						this.ts.sets[this.ts.current] = newCurrent;
+						await this.cases.loadTestSet(this.ts.current, false);
+					}
 				}
 
-				await this.upTestSet();
-			} else if (msg.type=="deleteTestSet") {
-				await this.deleteTestSet(msg.id,false);
-			}
-		})().catch((e)=>this.handleErr(e))));
-		
+				this.lastFocus=Date.now();
+				await this.upTestSet(false);
+			})().catch(e=>this.handleErr(e));
+		}));
+
+		this.cases = new TestCases(ctx, log, (x)=>this.send(x), this.ts.current, ()=>this.upTestSet());
+
 		this.toDispose.push(
 			this.testEditor, this.cases,
 			workspace.onDidSaveTextDocument((e) => {
 				if (e.uri.scheme=="file") {
 					const tc = this.cases.fileToCase.get(resolve(e.fileName));
-					if (tc) this.cases.reloadTestSource(tc.case);
+					if (tc) this.cases.reloadTestSource(tc.case).catch((e)=>this.handleErr(e));
 				}
 			})
 		);
 
 		this.cases.init().catch((e)=>this.handleErr(e));
+
+		this.companion = new Companion(log);
+		this.companion.start().catch((e)=>this.handleErr(e));
+		this.toDispose.push(this.companion, this.companion.event((task) => (async()=>{
+			this.log.info("Received task from companion", task);
+			this.ts.sets[this.ts.nextId] = {name: task.name, group: task.group};
+			await this.cases.makeTestSetData(this.ts.nextId, task.tests);
+
+			if (task.batch.size==1) this.ts.current=this.ts.nextId;
+			this.ts.nextId++;
+			await this.upTestSet();
+
+			if (task.batch.size==1) await this.cases.loadTestSet(this.ts.nextId-1, true);
+		})().catch((e)=>this.handleErr(e))));
 
 		this.toDispose.push(window.onDidChangeActiveTextEditor(()=>this.checkActive()));
 		this.checkActive();
@@ -173,13 +221,28 @@ export default class App {
 				&& this.openFile.path==resolve(e.fileName)) {
 
 				this.openFile=null;
-				app.send({type:"updateProgram", path:null});
+				this.send({type:"updateProgram", path:null});
 			}
-		}))
+		}));
 
-		const app=this;
+		this.commandHandler = {
+			"cpu.debug": async () => await this.handleRunDbgCmd(true),
+			"cpu.run": async () => await this.handleRunDbgCmd(false),
+			"cpu.runAll": async () => await this.reducers.runAll({})
+		};
+
+		for (const cmd in this.commandHandler) {
+			this.toDispose.push(commands.registerCommand(cmd, ()=>{
+				this.commandHandler[cmd as keyof typeof this.commandHandler]().catch((e)=>this.handleErr(e));
+			}));
+		}
+
 		this.reducers = {
-			async createTestSet() {
+			clearRunAll: async () => { await this.cases.clearRunAll(); },
+			openSettings: async () => {
+				commands.executeCommand("workbench.action.openSettings", "cpu.");
+			},
+			createTestSet: async ()=>{
 				const name = await window.showInputBox({
 					title: "Create testset",
 					prompt: "Choose a name",
@@ -192,111 +255,100 @@ export default class App {
 
 				if (name==undefined) return;
 
-				app.ts.sets[app.ts.nextId]=name;
-				app.ts.current=app.ts.nextId;
-				await app.cases.loadTestSet(app.ts.nextId, true);
-				await app.upTestSet(app.ts.nextId++);
+				this.ts.sets[this.ts.nextId]={name};
+				this.ts.current=this.ts.nextId;
+				await this.cases.loadTestSet(this.ts.nextId++, true);
+				await this.upTestSet();
 			},
-			async renameTestSet({name}) {
-				app.ts.sets[app.ts.current]=name;
-				await app.upTestSet(app.ts.current);
+			renameTestSet: async ({name})=>{ this.ts.sets[this.ts.current].name=name; },
+			switchTestSet: async ({i})=>{
+				this.ts.current=i;
+				await this.cases.loadTestSet(i, true);
 			},
-			async switchTestSet({i}) {
-				app.ts.current=i;
-				await app.cases.loadTestSet(i, true);
-				await app.upTestSet();
+			deleteTestSet: async ({i})=>{
+				await this.deleteTestSet(i);
 			},
-			async deleteTestSet({i}) {
-				await app.deleteTestSet(i,true);
-			},
-			async runAll() {
-				const is = Object.keys(app.cases.cases).map(Number);
+			runAll: async ()=>{
+				const is = Object.keys(this.cases.cases).map(Number);
 				if (is.length==0) throw new Error("No test cases to run");
-				if (app.openFile==null) await this.setProgram({type:"setProgram",clear:false});
-				if (app.openFile==null) return;
-				app.cases.runMany(is, app.openFile.path);
+				if (this.openFile==null) await this.setProgram(false);
+				if (this.openFile==null) return;
+
+				await this.cases.runMany(is, this.openFile.path);
 			},
-			async moveTest({a,b}) { app.cases.moveTest(a,b); },
-			async importTests() { app.cases.importCases(); },
-			async createTestCase() { await app.cases.createTest(); },
-			async removeTestCase({i}) { app.cases.removeTest(i); },
-			async testCaseInput({inp}) {
-				if (app.cases.run.runningTest==undefined || !(app.cases.run.runningTest in app.cases.inputs))
+			moveTest: async ({a,b})=>{ this.cases.moveTest(a,b); },
+			importTests: async ()=>{ await this.cases.importCases(); },
+			createTestCase: async ()=>{ await this.cases.createTest(); },
+			removeTestCase: async ({i})=>{ await this.cases.removeTest(i); },
+			testCaseInput: async ({inp})=>{
+				if (this.cases.run.runningTest==undefined || !(this.cases.run.runningTest in this.cases.inputs))
 					throw new Error("Can't input; program is not running");
-				app.cases.inputs[app.cases.run.runningTest].fire(inp);
+				this.cases.inputs[this.cases.run.runningTest].fire(inp);
 			},
-			async runTestCase({i, dbg}) {
-				if (app.openFile==null) await this.setProgram({type:"setProgram",clear:false});
-				if (app.openFile==null) return;
+			runTestCase: async ({i, dbg, stress})=>{
+				if (this.openFile==null) await this.setProgram(false);
+				if (this.openFile==null) return;
 
-				app.cases.runTest(i, dbg, app.openFile.path);
+				this.openTest=i;
+				this.send({type: "openTest", i, focus: false});
+				await this.cases.runTest(i, dbg, this.openFile.path, stress);
 			},
-			async setProgram({clear}) {
-				if (clear) {
-					app.openFile=null;
-				} else {
-					const u = await app.chooseCppFile("program");
-					if (u==null) return;
-
-					app.openFile={type: "file", path: resolve(u)};
-				}
-
-				app.send({type:"updateProgram", path: app.openFile?.path ?? null});
+			setProgram: async ({clear})=>{ await this.setProgram(clear); },
+			setTestName: async ({i,name})=>{
+				this.cases.cases[i].tc.name=name;
+				this.cases.upTestCase(i);
 			},
-			async setTestName({i,name}) {
-				app.cases.cases[i].tc.name=name;
-				app.cases.upTestCase(i);
+			cancelRun: async ({i})=>{
+				if (i!=undefined) this.cases.cases[i].cancel?.cancel();
+				else this.cases.runAllCancel.cancel?.cancel();
 			},
-			async cancelRun({i}) {
-				if (i!=undefined) app.cases.cases[i].cancel?.cancel();
-				else app.cases.runAllCancel.cancel?.cancel();
-			},
-			async setChecker({checker}) {
+			setChecker: async ({checker})=>{
 				if (checker!=null) {
-					if (!(checker in app.cases.checkers)) throw new Error("Checker not found");
-					app.cases.checker={type: "default", name: checker};
+					if (!(checker in this.cases.checkers)) throw new Error("Checker not found");
+					this.cases.checker={type: "default", name: checker};
 				} else {
-					const u = await app.chooseCppFile("checker");
-					if (u!=null) app.cases.checker = {type: "file", path: resolve(u)};
+					const u = await this.chooseCppFile("checker");
+					if (u!=null) this.cases.checker = {type: "file", path: u};
 				}
 
-				app.cases.upChecker();
+				this.cases.upChecker();
 			},
-			async setCfg({cfg}) {
-				app.cases.cfg=cfg;
-				app.cases.upCfg();
+			setCfg: async ({cfg})=>{
+				this.cases.cfg=cfg;
+				this.cases.upCfg();
 			},
-			async openFile({path, inOS}) {
+			openFile: async ({path, inOS})=>{
 				await commands.executeCommand(inOS ? "revealFileInOS" : "vscode.open", Uri.file(path));
 			},
-			async readSource({i}) {
-				app.cases.reloadTestSource(i);
+			readSource: async ({i})=>{
+				await this.cases.reloadTestSource(i);
 			},
-			async readOutput({i}) {
-				if (app.cases.outputs[i])
-					app.send({type: "testCaseOutput", i, out: app.cases.outputs[i]});
+			readOutput: async ({i})=>{
+				if (this.cases.outputs[i])
+					this.send({type: "testCaseOutput", i, out: this.cases.outputs[i]});
 			},
-			async setSource({i, which, source}) {
-				app.cases.setSource(i,source,which);
+			setSource: async ({i, which, source})=>{
+				await this.cases.setSource(i,source,which);
 			},
-			async openTest({i}) {
-				app.openTest=i;
+			openTest: async ({i})=>{
+				this.openTest=i;
 
-				if (app.openTestEditor) {
-					app.send({type: "openTest", i});
-					app.openTestEditor.reveal(ViewColumn.Active);
+				if (this.openTestEditor) {
+					this.send({type: "openTest", i, focus: true});
+					this.openTestEditor.reveal(ViewColumn.Active);
 				} else {
-					app.openTestEditor=window.createWebviewPanel("cpu.testeditor", "Test Editor",
+					this.openTestEditor=window.createWebviewPanel("cpu.testeditor", "Test Editor",
 						ViewColumn.Active, {retainContextWhenHidden: true});
-					app.testEditor.resolveWebviewView(app.openTestEditor);
-					app.toDispose.push(app.openTestEditor);
+					this.openTestEditor.iconPath = Uri.joinPath(this.ctx.extensionUri, "resources/small-icon.png");
+					this.testEditor.resolveWebviewView(this.openTestEditor);
+					this.toDispose.push(this.openTestEditor);
 
-					app.openTestEditor.onDidDispose(()=>{
-						app.openTestEditor=undefined;
+					this.openTestEditor.onDidDispose(()=>{
+						this.openTestEditor=undefined;
 					});
 				}
 			},
-			async setTestFile({i,which,ty}) {
+			setTestFile: async ({i,which,ty})=>{
 				if (ty=="import") {
 					const x = await window.showOpenDialog({
 						canSelectFiles: true,
@@ -306,11 +358,27 @@ export default class App {
 
 					if (x?.length==1) {
 						if (x[0].scheme!="file") throw new Error("Selected input/answer is not on disk");
-						app.cases.setFile(i, which, x[0].fsPath);
+						await this.cases.setFile(i, which, x[0].fsPath);
 					}
 				} else {
-					app.cases.setFile(i,which,undefined,ty=="create");
+					await this.cases.setFile(i,which,undefined,ty=="create");
 				}
+			},
+			chooseCppFile: async ({key,name})=>{
+				const path = await this.chooseCppFile(name);
+				if (path) this.send({type: "cppFileChosen", key, path});
+			},
+			createStress: async ({name, stress}) => {
+				await this.cases.createTest(name, {...stress, status: null});
+			},
+			updateStress: async ({i,stress}) => {
+				const tc = this.cases.cases[i].tc;
+				if (tc.stress==undefined) throw new Error("No stress found for test");
+				tc.stress = {...tc.stress, ...stress};
+				this.cases.upTestCase(i);
+			},
+			clearCompileCache: async () => {
+				await this.cases.runner.clearCompileCache();
 			}
 		};
 	}

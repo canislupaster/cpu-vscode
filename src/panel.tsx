@@ -26,7 +26,7 @@ function InputBar({onAdd, disabled}: {onAdd: (x: Message)=>void, disabled?: bool
 		handle(); ev.preventDefault();
 	}} >
 		<Textarea disabled={disabled}
-			className="flex-1 resize-none min-h-2 mb-0 bg-zinc-800" value={v} onChange={(ev)=>setV(ev.target.value)}
+			className="flex-1 resize-none min-h-2 bg-zinc-800" value={v} onChange={(ev)=>setV(ev.target.value)}
 			onKeyDown={(evt) => {
 				if (evt.key=="Enter" && !evt.shiftKey) {
 					handle();
@@ -61,14 +61,15 @@ function App() {
 
 	const preRef = useRef<HTMLPreElement>(null);
 
-	const cond = runningI && tcs.cases[runningI]?.cancellable==true;
+	const cond = runningI!=undefined && tcs.cases[runningI]?.cancellable==true;
 	useEffect(() => {
 		if (cond) {
 			setMsgs([[],0]);
-			setState({i: runningI, inputPath: tcs.cases[runningI].inFile ?? null, input: null, runCfg: tcs.cfg});
+			const c = tcs.cases[runningI];
+			setState({i: runningI, inputPath: c.inFile ?? null, input: null, runCfg: tcs.cfg});
 			send({type: "readSource", i: runningI});
 		}
-	}, [runningI && tcs.cases[runningI]?.cancellable==true]);
+	}, [runningI!=undefined && tcs.cases[runningI]?.cancellable==true]);
 
 	const addMsg = useCallback((x: Message) => setMsgs(([xs,total]) => {
 		const ns = [...xs,x];
@@ -106,7 +107,7 @@ function App() {
 		if (!fixScroll) return;
 
 		if (preRef.current!=null) preRef.current.scroll({
-			top: preRef.current!.scrollHeight-preRef.current!.clientHeight,
+			top: preRef.current.scrollHeight-preRef.current.clientHeight,
 			behavior: "instant"
 		});
 	}, [msgs, fixScroll])
@@ -124,14 +125,14 @@ function App() {
 
 	return <div className="flex flex-col items-stretch w-dvw h-dvh p-2 px-5" >
 		<pre className="flex-1 overflow-y-auto" ref={preRef} >
-			<Card className="mb-2" >
+			{state.inputPath!=null && <Card className="mb-2" >
 				<Text v="bold" >Input</Text>
-				{state.inputPath!=null && <span className="text-lime-200" >
+				<span className="text-lime-200" >
 					{state.input!=null && state.input.source==null
 						? <FileName path={state.inputPath} >Test input is too large; it will not be shown here.</FileName>
 						: state.input?.source ?? "Reading input file..."}{"\n"}
-				</span>}
-			</Card>
+				</span>
+			</Card>}
 
 			{msgs[0].map((v,i) => {
 				if (v.which=="user") {

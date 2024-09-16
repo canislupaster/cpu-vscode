@@ -7,12 +7,21 @@ export default [
   {files: ["**/*.{js,mjs,cjs,ts,jsx,tsx}"]},
   {languageOptions: { globals: {...globals.browser, ...globals.node} }},
   pluginJs.configs.recommended,
-  ...tseslint.configs.recommended,
+  ...tseslint.configs.recommendedTypeChecked,
   pluginReact.configs.flat.recommended,
+  {
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
   {
     rules: {
       "react/display-name": "off",
-      "react/prop-types": "off"
+      "react/prop-types": "off",
+      "@typescript-eslint/require-await": "off"
     }
   }
 ];

@@ -6,8 +6,10 @@ import { cancelPromise, cfg, delay, exists } from "./util";
 import { execFile, spawn } from "node:child_process";
 import { createReadStream, createWriteStream } from "node:fs";
 import pidusage from "pidusage";
-import { BaseLanguageClient, DidChangeConfigurationNotification } from "vscode-languageclient";
-import { CompileError, RunCfg, RunError, TestCase, TestResult } from "./shared";
+import { BaseLanguageClient } from "vscode-languageclient";
+import { CompileError, RunError, TestResult } from "./shared";
+import {parse} from "shell-quote";
+import Mustache from "mustache";
 
 //https://github.com/clangd/vscode-clangd/blob/master/api/vscode-clangd.d.ts
 interface ClangdApiV1 { languageClient: BaseLanguageClient };
@@ -26,12 +28,32 @@ type Cache = {
 };
 
 export type Test = {
-	output: string, prog: string, checker: string,
-	tc: TestCase, dbg: boolean,
-	onOutput?: (x: string, which: "stderr"|"stdout"|"judge")=>void,
+	output: string, prog: string,
+	checker?: string, args?: string,
+	name: string,
+	inFile?: string,
+	ansFile?: string,
+	dbg: boolean,
+	onOutput?: (x: string, which: "stderr"|"stdout")=>void,
+	onJudge?: (judge: string)=>void,
 	onInput?: Event<string>,
-	stop: CancellationToken
-}&RunCfg;
+	stop: CancellationToken,
+	tl?: number, ml?: number, eof: boolean,
+	cwd?: string
+};
+
+function kill(pid: number) {
+	try {
+		process.kill(pid);
+		return true;
+	} catch (e) {
+		//not sure why closed isn't flipped
+		//maybe checker/program exit super quickly or nodejs takes a while before it can
+		//switch execution context to handle exit event...
+		if (typeof e=="object" && e && "code" in e && e.code=="ESRCH") return true;
+		else return false;
+	}
+}
 
 type Program = {
 	dispose: ()=>void, write: (s: string)=>void, resume: ()=>void,
@@ -40,11 +62,11 @@ type Program = {
 };
 
 type ProgramStartOpts = {
-	prog: string,
+	prog: string, cwd?: string, args?: string,
 	stdin?: string, stdout?: string,
 	eof: boolean,
 	doStop?: boolean,
-	runerr: (msg: string, src?: Error)=>void,
+	runerr: (msg: string, src?: Error)=>RunError,
 	onOutput?: (x: string, which:"stdout"|"stderr")=>void
 };
 
@@ -54,10 +76,19 @@ function attachError(runerr: ProgramStartOpts["runerr"],
 };
 
 function startChildProgram({
-	prog,stdin,stdout,doStop,runerr,onOutput,eof
+	prog,stdin,stdout,doStop,runerr,onOutput,eof,cwd,args
 }: ProgramStartOpts): Program {
 	//sorry we're too poor for ptrace :)
-	const cp = spawn(prog);
+	const cp = spawn(prog, args!=undefined ? parse(args).map(x=>{
+		if (typeof x=="object") {
+			if ("comment" in x) return x.comment;
+			if (x.op=="glob") return x.pattern;
+			else return x.op;
+		} else {
+			return x;
+		}
+	}) : [], { cwd });
+
 	if (doStop && !cp.kill("SIGSTOP")) throw runerr("Couldn't pause process");
 	
 	attachError(runerr, cp, `Failed to start program ${prog}`);
@@ -67,8 +98,10 @@ function startChildProgram({
 	if (cp.pid==null || cp.stdout==null || cp.stderr==null)
 		throw runerr("Process missing PID, stdout, or stderr");
 
-	cp.stdout.on("data", (v:string|Buffer) => onOutput?.(v.toString("utf-8"),"stdout"));
-	cp.stderr.on("data", (v:string|Buffer) => onOutput?.(v.toString("utf-8"),"stderr"));
+	if (onOutput!=undefined) {
+		cp.stdout.on("data", (v:string|Buffer) => onOutput?.(v.toString("utf-8"),"stdout"));
+		cp.stderr.on("data", (v:string|Buffer) => onOutput?.(v.toString("utf-8"),"stderr"));
+	}
 
 	if (stdout) {
 		const write = createWriteStream(stdout);
@@ -91,10 +124,10 @@ function startChildProgram({
 				throw runerr("Couldn't resume process");
 		},
 		dispose() {
-			if (!this.closed && !cp.kill())
+			if (!this.closed && !kill(this.pid))
 				throw runerr("Failed to kill process");
 		},
-		write(s) { cp.stdin!.write(s, (err)=>{
+		write(s) { cp.stdin.write(s, (err)=>{
 			if (err) runerr("Couldn't write to process", err);
 		}); },
 		closePromise: new Promise((res) => cp.once("close", (v) => {
@@ -114,10 +147,10 @@ export class Runner {
 	private activeCompilations: Record<string, Promise<void>> = {};
 
 	constructor(private ctx: ExtensionContext, private log: LogOutputChannel) {
-		this.cache=ctx.workspaceState.get<Cache>("cache") ?? {entries: [], dir: this.getBuildDir()};
+		this.cache=ctx.globalState.get<Cache>("cache") ?? {entries: [], dir: this.getBuildDir()};
 	}
 
-	async updateCache() { await this.ctx.workspaceState.update("cache", this.cache); }
+	async updateCache() { await this.ctx.globalState.update("cache", this.cache); }
 
 	async clearCompileCache() {
 		for (const ent of this.cache.entries) {
@@ -143,7 +176,7 @@ export class Runner {
 
 	async compile({file,cached,type,testlib,stop}: CompileRequest): Promise<string> {
 		if (!workspace.isTrusted) throw new CompileError("Workspace is not trusted", file);
-		if (!exists(file)) throw new CompileError("Program not found", file);
+		if (!await exists(file)) throw new CompileError("Program not found", file);
 
 		const config = cfg();
 		const buildDir = this.getBuildDir();
@@ -172,10 +205,9 @@ export class Runner {
 		const args = config.get<string[]>("compileArgs.common") ?? [];
 		args.push(...config.get<string[]>(`compileArgs.${type}`) ?? [])
 
+		if (testlib) args.unshift("-isystem", join(this.ctx.extensionPath, "testlib"));
+
 		for (const arg of args) hash.update(arg);
-		if (testlib) {
-			args.unshift("-isystem", join(this.ctx.extensionPath, "testlib"));
-		}
 
 		const hashStr = hash.digest().toString("hex")
 
@@ -184,6 +216,26 @@ export class Runner {
 
 		let exec: TaskExecution;
 		const doCompile = async () => {
+			const cwd = this.getCwd(file);
+
+			const clangd = extensions.getExtension<ClangdExtension>("llvm-vs-code-extensions.vscode-clangd");
+
+			const setting: Record<string, {workingDirectory: string, compilationCommand: string[]}> = {
+				[file]: {compilationCommand: args, workingDirectory: cwd}
+			};
+
+			if (clangd?.isActive) {
+				const lsp = clangd.exports.getApi(1).languageClient;
+				
+				await lsp.start();
+				if (lsp.isRunning())
+					//can't use DidChangeConfigurationNotification.type for arcane reasons
+					//you don't want to know
+					await lsp.sendNotification("workspace/didChangeConfiguration", {
+						settings: { compilationDatabaseChanges: setting }
+					});
+			}
+
 			const path = join(buildDir,hashStr);
 			const cacheI = this.cache.entries.indexOf(hashStr);
 			if (cacheI!=-1 && await exists(path)) {
@@ -195,23 +247,6 @@ export class Runner {
 					await this.updateCache()
 					return path;
 				}
-			}
-
-			const cwd = this.getCwd(file);
-
-			const clangd = extensions.getExtension<ClangdExtension>("llvm-vs-code-extensions.vscode-clangd");
-
-			const setting: Record<string, {workingDirectory: string, compilationCommand: string[]}> = {
-				[file]: {compilationCommand: args, workingDirectory: cwd}
-			};
-
-			if (clangd?.isActive) {
-				const lsp = clangd.exports.getApi(1).languageClient;
-				await lsp.start();
-				if (lsp.isRunning())
-					lsp.sendNotification(DidChangeConfigurationNotification.type, {
-						settings: { compilationDatabaseChanges: setting }
-					});
 			}
 
 			args.unshift(file, "-o", path);
@@ -236,7 +271,7 @@ export class Runner {
 
 			if (res=="timeout") {
 				throw new CompileError(`Compilation of ${name} timed out`, file);
-			} else if (res!=0 || !exists(path)) {
+			} else if (res!=0 || !await exists(path)) {
 				throw new CompileError(`Failed to compile ${name}`, file);
 			}
 
@@ -256,14 +291,17 @@ export class Runner {
 		return await prom;
 	}
 
+	evaluateStressArgs(args: string, i: number) { return Mustache.render(args, {i}); }
+
 	async run({
-		output,prog,checker,tc,dbg,stop,onInput,onOutput,tl,ml,eof,disableTl
+		output,prog,checker,name,inFile,ansFile,dbg,stop,onInput,onOutput,onJudge,tl,ml,eof,cwd,args
 	}: Test): Promise<TestResult|null> {
-		tl*=1000; // in ms
+		cwd ??= join(prog,"..");
+		if (tl!=undefined) tl*=1000; // in ms
 		let pid:number|null=null;
 
 		const log = (s: string) =>
-			this.log.appendLine(`${tc.name} | ${prog} | ${pid!=null ? pid : "no PID"} | ${s}`);
+			this.log.appendLine(`${name} | ${prog} | ${pid!=null ? pid : "no PID"} | ${s}`);
 		const runerr = (err: string, src?: Error) => {
 			const x=new RunError(err, prog, src);
 			errEvent.fire(x); return x;
@@ -294,8 +332,8 @@ export class Runner {
 
 		try {
 			const cp = startChildProgram({
-				prog, stdin: tc.inFile, stdout: output, runerr,
-				doStop: dbg, onOutput, eof
+				prog, stdin: inFile, stdout: output, runerr,
+				doStop: dbg, onOutput, eof, args, cwd
 			});
 
 			pid=cp.pid;
@@ -320,7 +358,7 @@ export class Runner {
 					name: "Attach", program: prog, pid: cp.pid,
 					expressions: "native"
 				}).then(x=>x, (reason)=>{
-					runerr("Couldn't start debugger", new Error(reason));
+					runerr("Couldn't start debugger", reason instanceof Error ? reason : undefined);
 					return false;
 				})) {
 					log("Debugging cancelled, stopping program");
@@ -337,14 +375,14 @@ export class Runner {
 				);
 			}
 
-			(async () => {
+			void (async () => {
 				while (!stopUsageLoop) {
 					try {
 						const usage = await pidusage(cp.pid);
 						wallTime=usage.elapsed; cpuTime=usage.ctime; mem=usage.memory/1024/1024;
 
-						if (!disableTl && wallTime>tl) limitExceeded.fire("TL");
-						else if (mem>ml) limitExceeded.fire("ML");
+						if (tl!=undefined && wallTime>tl) limitExceeded.fire("TL");
+						else if (ml!=undefined && mem>ml) limitExceeded.fire("ML");
 
 						await delay(150);
 					} catch (e) {
@@ -379,22 +417,22 @@ export class Runner {
 			if (res=="ML" || res=="TL") return ret(res);
 			else if (cp.exitCode!=0) return ret("RE");
 
-			if (tc.inFile && tc.ansFile) {
+			if (inFile && ansFile && checker) {
 				log("Checking output...");
-				const x = execFile(checker, [tc.inFile, output, tc.ansFile], (err, stdout, stderr) => {
+				const x = execFile(checker, [inFile, output, ansFile], { cwd }, (err, stdout, stderr) => {
 					let jout = x.exitCode!=null ? `Checker exited with code ${x.exitCode}` : `Checker was killed`;
 					if (stdout.length>0) jout+=`\n${stdout}`;
 					if (stderr.length>0) jout+=`\n${stderr}`;
 
-					onOutput?.(jout, "judge");
+					onJudge?.(jout);
 				});
 
 				attachError(runerr, x, "Failed to start checker");
 
 				let checkerClosed=false;
-				cbs.push({dispose() {
-					log("Killing checker");
-					if (!checkerClosed && !x.kill()) throw runerr("Couldn't kill checker");
+				cbs.push({dispose(){
+					if (!checkerClosed && !kill(x.pid!))
+						throw runerr("Failed to kill checker");
 				}});
 
 				await Promise.race([
@@ -420,7 +458,19 @@ export class Runner {
 				await debug.stopDebugging(dbgSession);
 			}
 
-			cbs.forEach(x=>x.dispose());
+			const errs: Error[] = [];
+			cbs.forEach(x=>{
+				try {
+					x.dispose()
+				} catch (e) {
+					if (e instanceof Error) errs.push(e);
+				}
+			});
+
+			// eslint-disable-next-line no-unsafe-finally
+			if (errs.length==1) throw errs[0];
+			// eslint-disable-next-line no-unsafe-finally
+			else if (errs.length>0) throw new AggregateError(errs);
 		}
 	}
 }

@@ -1,23 +1,22 @@
 import { stat } from "node:fs/promises";
-import { WebviewViewProvider, workspace, Event, Disposable, WebviewView, CancellationToken, WebviewViewResolveContext, Uri, WebviewPanel, CancellationError } from "vscode";
-import { InitState, MessageFromExt } from "./shared";
+import { WebviewViewProvider, workspace, Event, WebviewView, CancellationToken, Uri, WebviewPanel, CancellationError } from "vscode";
+import { InitState, MessageFromExt, MessageToExt } from "./shared";
 import App from "./main";
 
 export const delay = (x: number) => new Promise<void>((res)=>setTimeout(res, x));
-export const exists = (path: string) => stat(path).then((_)=>true, (_)=>false);
+export const exists = (path: string) => stat(path).then(()=>true, ()=>false);
 export const cfg = () => workspace.getConfiguration("cpu");
 export const cancelPromise = (x: CancellationToken) => new Promise<never>((res,rej) => {
 	x.onCancellationRequested(()=>rej(new CancellationError()));
 });
 
 export class CPUWebviewProvider implements WebviewViewProvider {
-	msgSet?: Set<MessageFromExt["type"]>;
+	msgFilter: Partial<Record<MessageFromExt["type"], boolean>> ={};
 	app?: App;
 
 	constructor(private src: "panel"|"activitybar"|"testeditor",
-		private onMessage: Event<MessageFromExt>, msgFilter?: MessageFromExt["type"][]) {
-
-		if (msgFilter) this.msgSet=new Set(msgFilter);
+		private onMessage: Event<MessageFromExt>, exclude: MessageFromExt["type"][]=[]) {
+		for (const v of exclude) this.msgFilter[v]=false;
 	}
 
 	dispose() {}
@@ -31,7 +30,7 @@ export class CPUWebviewProvider implements WebviewViewProvider {
 		};
 
 		const sendSub = this.onMessage((msg)=>{
-			if (this.msgSet==undefined || this.msgSet.has(msg.type))
+			if (!(msg.type in this.msgFilter) || this.msgFilter[msg.type])
 				webview.postMessage(msg)
 		});
 
@@ -42,20 +41,20 @@ export class CPUWebviewProvider implements WebviewViewProvider {
 <head>
 	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-	<link rel="stylesheet" href="${webview.asWebviewUri(Uri.joinPath(this.app.ctx.extensionUri, `out/${this.src}.css`))}" />
+	<link rel="stylesheet" href="${webview.asWebviewUri(Uri.joinPath(this.app.ctx.extensionUri, `out/${this.src}.css`)).toString()}" />
 	<script>
 		const init = ${JSON.stringify(init)};
 	</script>
-	<script src="${webview.asWebviewUri(Uri.joinPath(this.app.ctx.extensionUri, `out/${this.src}.js`))}" ></script>
+	<script src="${webview.asWebviewUri(Uri.joinPath(this.app.ctx.extensionUri, `out/${this.src}.js`)).toString()}" ></script>
 </head>
 <body>
 	<div id="root" ></div>
 </body>
 </html>`;
 		
-		const recvSub = webview.onDidReceiveMessage((x)=>this.app!.handleMsg(x));
+		const recvSub = webview.onDidReceiveMessage((x)=>this.app!.handleMsg(x as MessageToExt));
 		onDidDispose(()=>{
-			sendSub.dispose(), recvSub.dispose()
+			sendSub.dispose(); recvSub.dispose()
 		});
 	}
 }

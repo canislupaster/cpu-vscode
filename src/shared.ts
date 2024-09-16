@@ -30,7 +30,8 @@ export type MessageToExt = {
 } | {
 	type: "runTestCase",
 	i: number,
-	dbg: boolean
+	dbg: boolean,
+	stress: "none"|"run"|"generator"
 } | {
 	type: "cancelRun",
 	i?: number
@@ -68,6 +69,20 @@ export type MessageToExt = {
 	type: "renameTestSet", name: string
 } | {
 	type: "switchTestSet"|"deleteTestSet", i: number
+} | {
+	type: "updateStress", i: number, stress: Partial<Omit<Stress,"status">>
+} | {
+	type: "createStress",
+	name?: string,
+	stress: Omit<Stress,"status">
+} | {
+	type: "chooseCppFile", key: string, name: string
+} | {
+	type: "clearCompileCache"
+} | {
+	type: "clearRunAll"
+} | {
+	type: "openSettings"
 };
 
 export type TestResult = {
@@ -78,16 +93,27 @@ export type TestResult = {
 
 export const badVerdicts: TestResult["verdict"][] = ["ML","TL","RE","WA"];
 
+export type Stress = {
+	generator: string,
+	brute: string,
+	args: string,
+	maxI: number,
+	status: {
+		i: number,
+		time: number,
+		maxI: number
+	}|null
+};
+
 export type TestCase = {
 	name: string,
-
 	inFile?: string,
 	ansFile?: string,
 	tmpIn: boolean, tmpAns: boolean,
-
 	cancellable: boolean|null,
 	lastRun: TestResult|null,
 	err: {type: "compile", err: CompileError}|{type: "run", err: RunError}|null,
+	stress?: Stress
 };
 
 export type RunState = {
@@ -113,6 +139,11 @@ export function testErr({err}: Pick<TestCase,"err">) {
 
 export type TestCaseI = {i: number, test: TestCase};
 
+//group not null <-> imported from companion
+//maybe ill make things neater. but not now!
+export type TestSetMeta = {name: string, group?: string, mod?: number};
+export type TestSets = Record<number,TestSetMeta>;
+
 export type InitState = {
 	cases: Record<number,TestCase>,
 	cfg: RunCfg,
@@ -122,8 +153,10 @@ export type InitState = {
 	run: RunState,
 	openFile: string|null,
 	order: number[],
-	testSets: Record<number,string>,
-	currentTestSet: number
+	testSets: TestSets,
+	currentTestSet: number,
+
+	buildDir: string, testSetDir: string
 };
 
 export type TestOut = {
@@ -155,7 +188,7 @@ export type MessageFromExt = {
 	type: "testCaseStream",
 	which: "stdout"|"stderr"|"judge", txt: string
 } | {
-	type: "openTest", i?: number
+	type: "openTest", i?: number, focus: boolean
 } | {
 	type: "updateProgram", path: string|null
 } | {
@@ -165,5 +198,7 @@ export type MessageFromExt = {
 } | {
 	type: "updateTestSets",
 	current: number,
-	sets: Record<number,string>
+	sets: TestSets
+} | {
+	type: "cppFileChosen", key: string, path: string
 };

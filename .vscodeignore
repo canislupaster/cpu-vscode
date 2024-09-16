@@ -9,3 +9,9 @@ vsc-extension-quickstart.md
 **/*.map
 **/*.ts
 **/.vscode-test.*
+node_modules
+src
+testlib
+!testlib/checkers
+!testlib/testlib.h
+!testlib/LICENSE

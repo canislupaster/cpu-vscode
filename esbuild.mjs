@@ -1,5 +1,6 @@
-import { ChildProcess, exec, execFile, spawn } from "child_process";
+import { spawn } from "child_process";
 import * as esbuild from "esbuild";
+import { rm } from "fs/promises";
 
 const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
@@ -25,8 +26,13 @@ async function main() {
     }
   };
 
-  await start("npx tsc --project ./tsconfig.json", "--watch --preserveWatchOutput", "tsc");
+  if (production) {
+    console.log("bundling for production...");
+    await rm("./out", {recursive: true});
+  }
+
   await start("npx tailwindcss -i ./src/main.css -o ./out/output.css", "--watch", "tailwind");
+  await start("npx tsc --project ./tsconfig.json", "--watch --preserveWatchOutput", "tsc");
 
   /**
    * @type {import('esbuild').Plugin}
@@ -54,8 +60,8 @@ async function main() {
     bundle: true,
     outdir: "out",
     minify: production,
-    sourcemap: !production,
-    sourcesContent: !production,
+    sourcemap: production ? undefined : "linked",
+    sourcesContent: false,
     platform,
     loader: {
       ".ttf": "file",
@@ -75,8 +81,9 @@ async function main() {
       await a.watch();
     } else {
       await a.rebuild();
-      await a.dispose();
     }
+
+    await a.dispose();
   }));
 }
 

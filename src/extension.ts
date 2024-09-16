@@ -15,7 +15,7 @@ export function activate(ctx: ExtensionContext) {
 	const onMessage = new EventEmitter<MessageFromExt>();
 	ctx.subscriptions.push(onMessage);
 
-	const activity = new CPUWebviewProvider("activitybar", onMessage.event);
+	const activity = new CPUWebviewProvider("activitybar", onMessage.event, ["testCaseStream"]);
 	const panel = new CPUWebviewProvider("panel", onMessage.event);
 
 	ctx.subscriptions.push(
@@ -55,7 +55,9 @@ export function activate(ctx: ExtensionContext) {
 			const act = () => {
 				log.info("reloading webviews");
 				if (tm) clearTimeout(tm);
-				tm=setTimeout(()=>commands.executeCommand("workbench.action.webview.reloadWebviewAction"), 500);
+				tm=setTimeout(()=>{
+					commands.executeCommand("workbench.action.webview.reloadWebviewAction");
+				}, 500);
 			};
 
 			while (true) {
@@ -75,7 +77,9 @@ export function activate(ctx: ExtensionContext) {
 					});
 				}
 			}
-		})();
+		})().catch(e=>{
+			window.showErrorMessage(`Watcher failed with ${e}`);
+		});
 
 		ctx.subscriptions.push(hotRequire<typeof import("./main")>(
 			module,

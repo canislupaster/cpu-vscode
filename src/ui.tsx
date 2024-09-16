@@ -13,6 +13,7 @@ import ReactSelect, { ClassNamesConfig } from "react-select";
 import { createRoot } from "react-dom/client";
 import { animations, handleDragstart, handleEnd, ParentConfig, performSort, } from "@formkit/drag-and-drop";
 import { useDragAndDrop } from "@formkit/drag-and-drop/react";
+import { Modal, ModalProps } from "@nextui-org/modal";
 
 export const Input = ({className, icon, ...props}: {icon?: React.ReactNode}&React.InputHTMLAttributes<HTMLInputElement>) =>
 	<input type="text" className={twMerge(`text-white bg-zinc-800 w-full p-2 border-2 border-zinc-600 focus:outline-none focus:border-blue-500 transition duration-300 rounded-lg disabled:bg-zinc-600 disabled:text-gray-400 ${icon ? "pl-11" : ""}`, className)} {...props} />;
@@ -20,7 +21,7 @@ export const Input = ({className, icon, ...props}: {icon?: React.ReactNode}&Reac
 export const Textarea = forwardRef<HTMLTextAreaElement, JSX.IntrinsicElements["textarea"]>((
 	{className, children, ...props}: JSX.IntrinsicElements["textarea"], ref
 ) =>
-	<textarea className={twMerge("text-white bg-neutral-950 w-full p-2 border-2 border-zinc-900 focus:outline-none focus:border-blue-500 disabled:bg-zinc-600 disabled:text-gray-400 transition duration-300 rounded-lg mb-5 resize-y max-h-60 min-h-24", className)}
+	<textarea className={twMerge("text-white bg-zinc-800 w-full p-2 border-2 border-zinc-600 focus:outline-none focus:border-blue-500 disabled:bg-zinc-600 disabled:text-gray-400 transition duration-300 rounded-lg resize-y max-h-60 min-h-24", className)}
 		rows={6} {...props} ref={ref} >
 		{children}
 	</textarea>);
@@ -35,7 +36,7 @@ export const Button = ({className, disabled, icon, ...props}: HTMLAttributes<HTM
 export const HiddenInput = ({className, ...props}: React.InputHTMLAttributes<HTMLInputElement>) =>
 	<input className={twMerge(`bg-transparent border-0 outline-none border-b-2
 		hover:border-zinc-600 border-zinc-700
-		focus:outline-none focus:border-blue-500 transition duration-300 px-1 py-px mb-2`, className)}
+		focus:outline-none focus:border-blue-500 transition duration-300 px-1 py-px`, className)}
 		{...props} ></input>
 
 export const IconButton = ({className, icon, disabled, ...props}: {icon?: React.ReactNode, disabled?: boolean}&HTMLAttributes<HTMLButtonElement>) =>
@@ -49,10 +50,7 @@ export const Anchor: React.FC<AnchorHTMLAttributes<HTMLAnchorElement>> = ({class
 		underline-offset-2 transition-all hover:text-gray-50 hover:bg-cyan-100/5 cursor-pointer`,className
 	);
 
-	return <a className={classN} href="#" {...props} onClick={(ev) => {
-		ev.preventDefault();
-		props.onClick?.(ev);
-	}} >{children}</a>;
+	return <a className={classN} {...props} >{children}</a>;
 }
 
 export const LinkButton = ({className, icon, ...props}: React.AnchorHTMLAttributes<HTMLAnchorElement>&{icon?: React.ReactNode}) =>
@@ -114,9 +112,12 @@ const selectStyle: ClassNamesConfig<unknown,boolean> = {
 export const Select = (props: React.ComponentProps<ReactSelect>) =>
 	<ReactSelect unstyled classNames={selectStyle} {...props} />;
 
-export type DropdownPart = {type: "txt", txt?: React.ReactNode}
+export type DropdownPart = ({type: "txt", txt?: React.ReactNode}
 	| { type: "act", name?: React.ReactNode, act: ()=>void,
-			disabled?: boolean, active?: boolean };
+			disabled?: boolean, active?: boolean })&{key?: string|number};
+
+export const AppModal = ({children,...props}: ModalProps) =>
+	<Modal portalContainer={useContext(AppCtx).rootRef.current!} {...props} >{children}</Modal>;
 
 export function Dropdown({parts, trigger}: {trigger?: React.ReactNode, parts: DropdownPart[]}) {
 	const [open, setOpen] = useState(false);
@@ -125,12 +126,12 @@ export function Dropdown({parts, trigger}: {trigger?: React.ReactNode, parts: Dr
 	return <Popover placement="bottom" showArrow isOpen={open}
 		onOpenChange={setOpen} triggerScaleOnOpen={false} portalContainer={ctx.rootRef.current!} >
 		<PopoverTrigger><div>{trigger}</div></PopoverTrigger>
-		<PopoverContent className="rounded-md bg-zinc-900 border-gray-800 flex flex-col gap-2 items-stretch px-0 py-0 max-w-44" >
+		<PopoverContent className="rounded-md bg-zinc-900 border-gray-800 flex flex-col gap-2 items-stretch px-0 py-0 max-w-60 max-h-80 overflow-y-auto" >
 			<div>
 				{parts.map((x,i) => {
 					//copy pasting is encouraged by tailwind!
 					if (x.type=="act")
-						return <Button key={i} disabled={x.disabled}
+						return <Button key={x.key ?? i} disabled={x.disabled}
 							className={`m-0 border-zinc-700 border-t-0 first:border-t rounded-none first:rounded-t-md last:rounded-b-md hover:bg-zinc-700 w-full active:border-1 ${
 								x.active ? "bg-zinc-950" : ""
 							}`}
@@ -138,8 +139,8 @@ export function Dropdown({parts, trigger}: {trigger?: React.ReactNode, parts: Dr
 								x.act();
 								setOpen(false);
 							}} >{x.name}</Button>;
-					else return <div key={i}
-						className="flex flex-row justify-center gap-4 px-4 py-1.5 bg-zinc-900 items-center border m-0 border-zinc-700 border-t-0 first:border-t rounded-none first:rounded-t-md last:rounded-b-md w-full" >
+					else return <div key={x.key ?? i}
+						className="flex flex-row justify-center gap-4 bg-zinc-900 items-center border m-0 border-zinc-700 border-t-0 first:border-t rounded-none first:rounded-t-md last:rounded-b-md w-full" >
 							{x.txt}
 						</div>
 				})}
@@ -202,7 +203,7 @@ export const Divider = ({className}: {className?: string}) =>
 	<span className={twMerge("w-full h-px bg-zinc-600 my-2", className)} ></span>
 
 const AppCtx = createContext({
-	incTooltipCount(): void { throw "tooltips should be used in tooltip ctx only"; },
+	incTooltipCount(): void { throw new Error("tooltips should be used in tooltip ctx only"); },
 	tooltipCount: 0,
 	rootRef: null as unknown as React.RefObject<HTMLDivElement>
 });
@@ -287,6 +288,11 @@ export const Card = ({className, children, ...props}: HTMLAttributes<HTMLDivElem
 		{children}
 	</div>;
 
+export const Tag = ({className, children, ...props}: HTMLAttributes<HTMLDivElement>) =>
+	<div className={twMerge("flex flex-row gap-1 items-center bg-sky-600 rounded-2xl p-1 px-4 border-1 border-zinc-600 shadow-lg shadow-sky-400/15", className)} {...props} >
+		{children}
+	</div>;
+
 type TextVariants = "big"|"lg"|"md"|"dim"|"bold"|"normal";
 export function Text({className, children, v, ...props}: HTMLAttributes<HTMLParagraphElement>&{v?: TextVariants}) {
 	switch (v) {
@@ -305,6 +311,13 @@ export function useMessage(handle: (x: MessageFromExt)=>void, deps?: unknown[]) 
 		window.addEventListener('message', cb);
 		return ()=>window.removeEventListener("message", cb);
 	}, deps ?? []);
+}
+
+export function useChooseFile(key: string, chosen: (x: string)=>void) {
+	useMessage((x) => {
+		if (x.type=="cppFileChosen" && x.key==key) chosen(x.path);
+	});
+	return (name: string)=>send({type: "chooseCppFile", key, name});
 }
 
 export function verdictColor(verdict: TestResult["verdict"]) {
@@ -330,11 +343,14 @@ export function expandedVerdict(verdict: TestResult["verdict"]) {
 export function FileName({path, children, ...props}: {path: string}&Partial<React.ComponentProps<typeof AppTooltip>>) {
 	//i know, i know...
 	const idx = Math.max(path.lastIndexOf("\\\\"), path.lastIndexOf("/"));
-	return <AppTooltip content={<div className="flex flex-col max-w-full overflow-x-auto whitespace-pre p-2 py-4 gap-2 items-start" >
-		<Anchor onClick={()=>send({type: "openFile", path})} >
+	return <AppTooltip content={<div className="flex flex-col max-w-full p-2 py-4 gap-2 items-start" >
+		<div className="overflow-x-auto max-w-80 break-words text-gray-300" >
 			{path}
-		</Anchor>
-		<Button onClick={()=>send({type:"openFile",path,inOS:true})} >Reveal in Explorer/Finder</Button>
+		</div>
+		<div className="flex flex-row gap-2" >
+			<Button onClick={()=>send({type:"openFile",path})} >Open in VSCode</Button>
+			<Button onClick={()=>send({type:"openFile",path,inOS:true})} >Reveal in Explorer/Finder</Button>
+		</div>
 	</div>} {...props} >
 		{children ?? <Anchor>{path.slice(idx+1)}</Anchor>}
 	</AppTooltip>;
@@ -384,3 +400,5 @@ export function render(component: React.FunctionComponent) {
 			{React.createElement(component)}
 		</Wrapper>));
 }
+
+export const toSearchString = (x: string) => x.toLowerCase().replaceAll(" ","");

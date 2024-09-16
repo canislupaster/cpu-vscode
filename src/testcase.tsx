@@ -1,7 +1,7 @@
 //ok fuck esbuild is so crappy or something, react needs to be included for <></> to work
 import React, { useEffect, useRef, useState } from "react";
-import { InitState, RunState, TestCase, testErr, TestOut, TestResult } from "./shared";
-import { IconButton, send, useMessage, Text, Icon, Button, Card, Textarea, verdictColor, FileName, Alert, HiddenInput, Dropdown, DropdownPart } from "./ui";
+import { InitState, RunState, TestCase, testErr, TestOut, TestResult, TestSets } from "./shared";
+import { IconButton, send, useMessage, Text, Icon, Button, Card, Textarea, verdictColor, FileName, Alert, HiddenInput, Dropdown, DropdownPart, Input, toSearchString } from "./ui";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
 import { crosshairCursor, drawSelection, dropCursor, EditorView, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers, rectangularSelection, ViewUpdate } from "@codemirror/view";
@@ -9,6 +9,7 @@ import { EditorState, Text as CMText, ChangeSet, Extension } from "@codemirror/s
 import { unifiedMergeView } from "@codemirror/merge";
 
 declare const init: InitState;
+export const appInit = init;
 
 type TestSource = {
 	value: string|null,
@@ -52,8 +53,8 @@ export function useTestCases() {
 
 	const [state, setState] = useState({
 		cfg: init.cfg, checker: init.checker, checkers: init.checkers,
-		openTest: init.openTest, openFile: init.openFile,
-		testSets: init.testSets, currentTestSet: init.currentTestSet
+		openTest: init.openTest, focusOpenTest: false,
+		openFile: init.openFile, testSets: init.testSets, currentTestSet: init.currentTestSet
 	});
 
 	useMessage((msg) => {
@@ -73,7 +74,7 @@ export function useTestCases() {
 
 			case "updateCfg": setState(s=>({...s, cfg: msg.cfg})); break;
 			case "updateChecker": setState(s=>({...s, checker: msg.checker, checkers: msg.checkers})); break;
-			case "openTest": setState(s=>({...s, openTest: msg.i})); break;
+			case "openTest": setState(s=>({...s, openTest: msg.i, focusOpenTest: msg.focus})); break;
 			case "updateProgram": setState(s=>({...s, openFile: msg.path})); break;
 			case "updateRunState": setRun(msg.run); break;
 			case "updateTestSets": setState(s=>({...s, currentTestSet: msg.current, testSets: msg.sets})); break;
@@ -91,7 +92,18 @@ const mainTheme = (err: boolean) => EditorView.theme({
 	"&": {
 		"backgroundColor": "#1e1e1e",
 		"color": err ? "#f27b63" : "#9cdcfe",
-		"max-height": "10rem"
+		"max-height": "10rem",
+		"flex-grow": "1",
+		width: "0",
+		"border-radius": "0.5rem",
+		"outline": "2px solid #52525b",
+		"padding": "2px",
+		"transition-property": "outline",
+		"transition-timing-function": "cubic-bezier(0.4, 0, 0.2, 1)",
+		"transition-duration": "300ms",
+	},
+	"&.cm-editor.cm-focused": {
+		"outline": "2px solid #3B82F6",
 	},
 	"&.cm-editor .cm-scroller": {
 		"fontFamily": "Menlo, Monaco, Consolas, \"Andale Mono\", \"Ubuntu Mono\", \"Courier New\", monospace"
@@ -171,14 +183,14 @@ export function CMReadOnly({v, err, original}: {v: string, err?: boolean, origin
 
 		setEditor(edit);
 		return () => edit.destroy();
-	}, []);
+	}, [original]);
 
 	useEffect(()=>{
 		if (editor!=null)
-			editor!.dispatch({changes: {from: 0, to: editor!.state.doc.length, insert: v}});
+			editor.dispatch({changes: {from: 0, to: editor.state.doc.length, insert: v}});
 	}, [v, editor==null])
 
-	return <div ref={cmDiv} />;
+	return <div ref={cmDiv} className="flex flex-row" />;
 }
 
 export const TestCaseOutput = React.memo(({i, test, useCard, answer}: {i: number, test: TestCase, answer?: string, useCard?: boolean}) => {
@@ -190,7 +202,7 @@ export const TestCaseOutput = React.memo(({i, test, useCard, answer}: {i: number
 			<Text v="md" >{answer ? "Output (diff)" : "Output"}</Text>
 			<div className="flex flex-row gap-1 items-center" >
 				{out.stdout.length>0 && <IconButton icon={<Icon icon="copy" />} onClick={()=>{
-					window.navigator.clipboard.writeText(out.stdout);
+					void window.navigator.clipboard.writeText(out.stdout);
 				}} ></IconButton>}
 				<FileName path={out.path} >
 					<IconButton icon={<Icon icon="link-external" />} onClick={
@@ -206,7 +218,7 @@ export const TestCaseOutput = React.memo(({i, test, useCard, answer}: {i: number
 			<div className="flex flex-row justify-between" >
 				<Text v="bold" >Stderr</Text>
 				{<IconButton icon={<Icon icon="copy" />} onClick={()=>{
-					window.navigator.clipboard.writeText(out.stderr);
+					void window.navigator.clipboard.writeText(out.stderr);
 				}} ></IconButton>}
 			</div>
 			<CMReadOnly err v={out.stderr} />
@@ -220,7 +232,7 @@ export const TestCaseOutput = React.memo(({i, test, useCard, answer}: {i: number
 
 		{out.judge && <div>
 			<Text v="lg" >Checker output</Text>
-			<Textarea value={out.judge} readOnly className={`font-mono min-h-10 mb-0 mt-2 ${test.lastRun?.verdict!=null
+			<Textarea value={out.judge} readOnly className={`font-mono min-h-20 bg-zinc-900 mt-2 ${test.lastRun?.verdict!=null
 				? `text-${verdictColor(test.lastRun.verdict)}` : "text-lime-400"}`} rows={2} />
 		</div>}
 	</>;
@@ -260,9 +272,9 @@ function TestCaseFileEditor({i,which,source}:TestCaseFileProps&{path:string,sour
 		if (editor==null) return;
 
 		const upd = ()=>{
-			const l = editor!.state.doc.length;
+			const l = editor.state.doc.length;
 			const changes = ChangeSet.of({from: 0, to: l, insert: source},l);
-			editor!.dispatch({changes});
+			editor.dispatch({changes});
 
 			setV({lastSrcChange: changes, txt: null});
 		};
@@ -286,7 +298,7 @@ function TestCaseFileEditor({i,which,source}:TestCaseFileProps&{path:string,sour
 		}
 	}, [v.txt]);
 
-	return <div ref={cmDiv} />;
+	return <div ref={cmDiv} className="flex flex-row" />;
 }
 
 export const TestCaseFile = React.memo(({i, which, path, source}: TestCaseFileProps)=>{
@@ -295,7 +307,7 @@ export const TestCaseFile = React.memo(({i, which, path, source}: TestCaseFilePr
 			<Text v="md" >{which=="inFile" ? "Input" : "Answer"}</Text>
 			<div className="flex flex-row gap-1" >
 				{source!=null && path!=null && <IconButton icon={<Icon icon="copy" />} onClick={()=>
-					window.navigator.clipboard.writeText(source)
+					void window.navigator.clipboard.writeText(source)
 				} ></IconButton>}
 				{path!=null && <FileName path={path} ><IconButton icon={<Icon icon="link-external" />} onClick={
 					()=>send({type: "openFile", path})
@@ -319,20 +331,36 @@ export const TestCaseFile = React.memo(({i, which, path, source}: TestCaseFilePr
 	</>;
 });
 
-export function TestSetStatus({testSets, currentTestSet}: {
-	testSets: Record<number,string>, currentTestSet: number
-}) {
+export const TestSetStatus = React.memo(({testSets, currentTestSet}: {
+	testSets: TestSets, currentTestSet: number
+})=>{
+	const [search, setSearch] = useState("");
+	const sets = Object.entries(testSets).filter(([,v]) =>
+		search=="" || toSearchString(v.name).includes(toSearchString(search))
+	).map(([k,v]): DropdownPart => {
+		const ki = Number(k);
+		return {type: "act", key: ki, name: <>
+				{v.group && <Icon icon="cloud-download" />}{v.name}
+			</>, active: ki==currentTestSet, act(){
+			if (currentTestSet!=ki) send({type: "switchTestSet", i: ki});
+		}};
+	});
+
+	const cur = testSets[currentTestSet];
 	return <Card className="flex flex-col sm:flex-row sm:gap-6 flex-wrap items-stretch md:items-center" >
-		<div className="flex flex-col gap-2" >
-			<div className="flex flex-row gap-1 items-center w-full" >
+		<div className="flex flex-col gap-1 items-center" >
+			<div className="flex flex-row gap-2 items-center w-full justify-center px-2" >
 				<Text v="bold" className="text-nowrap" >Test set:</Text>
 
-				<HiddenInput minLength={1} maxLength={25} className="overflow-x-clip w-full mb-0"
-					value={testSets[currentTestSet]}
-					onChange={(e)=>send({type: "renameTestSet", name: e.target.value})} />
+				{cur.group ? <Text>{cur.name}</Text> : <HiddenInput minLength={1} maxLength={25}
+					className="flex-1 overflow-x-clip"
+					value={cur.name}
+					onChange={(e)=>send({type: "renameTestSet", name: e.target.value})} />}
 			</div>
+			
+			{cur.group && <Text v="dim" > {cur.group} </Text>}
 
-			<div className="flex flex-row gap-2 flex-wrap justify-center w-full" >
+			<div className="flex flex-row gap-2 flex-wrap justify-center w-full mt-1" >
 				<Button icon={<Icon icon="trash" />}
 					onClick={()=>send({type:"deleteTestSet", i: currentTestSet})}
 					className="bg-rose-900" >Delete</Button>
@@ -340,33 +368,31 @@ export function TestSetStatus({testSets, currentTestSet}: {
 				<Dropdown trigger={
 					<Button icon={<Icon icon="arrow-swap" />} >Switch</Button>
 				} parts={[
-					...Object.entries(testSets).map(([k,v]): DropdownPart => {
-						const ki = Number(k);
-						return {type: "act", name: v, active: ki==currentTestSet, act(){
-							if (currentTestSet!=ki) send({type: "switchTestSet", i: ki});
-						}};
-					}),
-					{ type: "act", name: "Create testset",
+					{type: "txt", txt: <Input placeholder="Search..." value={search} onChange={(ev) => {
+							setSearch(ev.target.value)
+						}} />, key: "search" },
+					...sets,
+					{ type: "act", name: <><Icon icon="add" /> Create testset</>,
 						act() {
 							//nextjs animates close of popover and then focuses document, which closes input box
 							//so we need some delay to ensure popover has closed
 							//(fuck)
 							setTimeout(()=>send({type: "createTestSet"}), 200);
-						}
+						}, key: "add"
 					}
 				]} />
 			</div>
 		</div>
 	</Card>;
-}
+});
 
 export function SetProgram({tc}: {tc: ReturnType<typeof useTestCases>}) {
-	return <Card className="flex flex-col sm:flex-row sm:gap-6 flex-wrap items-stretch md:items-center" >
-		<div className="flex flex-row gap-2 items-center" >
+	return <Card className="flex flex-col sm:flex-row sm:gap-6 flex-wrap items-center" >
+		<div className="flex flex-row gap-2 items-center justify-center" >
 			<Text v="bold" >Active program:</Text>
 			{tc.openFile!=null ? <FileName path={tc.openFile} /> : <Text className="text-red-400" >none set</Text>}
 		</div>
-		<Button onClick={()=>{
+		<Button className="min-w-40" onClick={()=>{
 			send({type:"setProgram", clear: tc.openFile!=null});
 		}} >{tc.openFile==null ? "Choose program" : "Clear"}</Button>
 	</Card>;
@@ -378,6 +404,7 @@ export function TestErr({x,pre,noFile}: {x: Pick<TestCase,"err">,pre?:string,noF
 	return e && <Alert bad title={e.title} txt={<>
 		{pre && <Text v="dim" >({pre}) </Text>}
 		{e.msg}
+		<br/>
 		{!noFile && <FileName path={e.file} />}
 	</>} ></Alert>;
 }
