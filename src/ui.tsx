@@ -1,5 +1,4 @@
 import "../node_modules/@vscode/codicons/dist/codicon.css";
-import "../out/output.css";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@nextui-org/popover";
 import { Collapse } from "react-collapse";

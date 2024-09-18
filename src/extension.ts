@@ -4,7 +4,7 @@ import App from "./main";
 import { join } from "path";
 import { FileChangeInfo, watch } from "fs/promises";
 import { MessageFromExt } from "./shared";
-import { cancelPromise, CPUWebviewProvider, exists } from "./util";
+import { cancelPromise, CPUWebviewProvider, exists, outDir } from "./util";
 
 declare const WATCH: boolean;
 
@@ -37,10 +37,14 @@ export function activate(ctx: ExtensionContext) {
 		log.info("hot reloading enabled");
 		
 		(async () => {
-			const watchers = (await Promise.all(["activitybar","panel","testeditor"]
-				.flatMap(x=>[`out/${x}.js`, `out/${x}.css`]).map(x=>join(ctx.extensionPath, x))
-				.map(async (x):Promise<[string,boolean]> => [x,await exists(x)])))
-				.filter(v=>v[1]).map(v=>watch(v[0])[Symbol.asyncIterator]());
+			const files = [
+				...["activitybar","panel","testeditor"].flatMap(x=>[`${outDir}/${x}.js`, `${outDir}/${x}.css`]),
+				`${outDir}/output.css`
+			].map(x=>join(ctx.extensionPath, x));
+
+			const watchers = (await Promise.all(files
+					.map(async (x):Promise<[string,boolean]> => [x,await exists(x)])))
+					.filter(v=>v[1]).map(v=>watch(v[0])[Symbol.asyncIterator]());
 			const unresolved = watchers.map(async (x,i): Promise<[FileChangeInfo<string>, number]> =>
 				[(await x.next()).value as FileChangeInfo<string>, i]
 			);
@@ -91,7 +95,7 @@ export function activate(ctx: ExtensionContext) {
 
 		ctx.subscriptions.push(hotRequire<typeof import("./main")>(
 			module,
-			join(ctx.extensionPath, "out/main.js"),
+			join(ctx.extensionPath, `${outDir}/main.js`),
 			(x)=>initApp(x.default)
 		));
 	} else {

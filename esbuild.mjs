@@ -1,6 +1,6 @@
 import { spawn } from "child_process";
 import * as esbuild from "esbuild";
-import { rm } from "fs/promises";
+import { rm, mkdir } from "fs/promises";
 
 const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
@@ -26,12 +26,15 @@ async function main() {
     }
   };
 
+  const outDir = production ? "dist" : "out";
   if (production) {
     console.log("bundling for production...");
-    await rm("./out", {recursive: true});
+    await rm(outDir, {recursive: true, force: true});
   }
 
-  await start("npx tailwindcss -i ./src/main.css -o ./out/output.css", "--watch", "tailwind");
+  await mkdir(outDir, {recursive: true});
+
+  await start(`npx tailwindcss -i ./src/main.css -o ./${outDir}/output.css`, "--watch", "tailwind");
   await start("npx tsc --project ./tsconfig.json", "--watch --preserveWatchOutput", "tsc");
 
   /**
@@ -58,7 +61,7 @@ async function main() {
   const makeCtx = (name, entryPoints, platform) => esbuild.context({
     entryPoints,
     bundle: true,
-    outdir: "out",
+    outdir: outDir,
     minify: production,
     sourcemap: !production,
     sourcesContent: !production,
@@ -68,7 +71,10 @@ async function main() {
       "": "empty" //esbuild tries to parse a README in terminal kit for some goddamned reason, idk if its bc there are glob requires there. no fucking clue.
     },
     external: ['vscode'],
-    define: { WATCH: watch ? "true" : "false" },
+    define: {
+      WATCH: watch ? "true" : "false",
+      PROD: production ? "true" : "false"
+    },
     plugins: [ esbuildProblemMatcherPlugin(name) ]
   });
 

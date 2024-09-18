@@ -3,7 +3,7 @@
   "publisher": "thomasqm",
   "displayName": "Competitive Programmers Union",
   "description": "A smoother competitive programming experience: test cases, debugging, stress testing and more",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "icon": "resources/icon.png",
   "author": "Thomas Marlowe",
   "repository": {
@@ -18,7 +18,7 @@
   ],
   "extensionKind": [ "workspace" ],
   "activationEvents": [],
-  "main": "./out/extension.js",
+  "main": "./main.js",
   "contributes": {
     "commands": [
       {
@@ -98,8 +98,8 @@
           },
           "default": {
             "java": "", "python": "",
-            "c++": "-Og -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -fsanitize=address -fsanitize=undefined -fno-sanitize-recover -fstack-protector",
-            "rust": "-C debuginfo=2 -C overflow-checks=on -C debug-assertions=on"
+            "c++": "-O0 -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC",
+            "rust": "-g -C debug-assertions=on"
           }
         },
         "cpu.compileArgs.common": {
@@ -114,7 +114,7 @@
           },
           "default": {
             "java": "", "python": "", "rust": "",
-            "c++": "-Wall -Wreorder -Wextra -pedantic -stdlib=libc++ -std=c++20 -Wl,-stack_size -Wl,0x40000000 -Wshadow -Wformat=2 -Wfloat-equal -Wcast-qual -Wcast-align -g"
+            "c++": "-Wall -std=c++20 -g"
           }
         }
       }
@@ -153,7 +153,7 @@
     }
   },
   "scripts": {
-    "compile": "npm run check-types && node esbuild.js",
+    "compile": "npm run check-types && node esbuild.mjs",
     "check-types": "tsc",
     "watch": "node esbuild.mjs --watch",
     "vscode:prepublish": "npm run package",

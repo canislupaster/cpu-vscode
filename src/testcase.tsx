@@ -172,6 +172,7 @@ export function CMReadOnly({v, err, original}: {v: string, err?: boolean, origin
 	useEffect(() => {
 		const edit = new EditorView({
 			parent: cmDiv.current!,
+			doc: v,
 			extensions: [
 				exts({type: err ? "err" : "out"}),
 				...original ? unifiedMergeView({
@@ -188,7 +189,7 @@ export function CMReadOnly({v, err, original}: {v: string, err?: boolean, origin
 	useEffect(()=>{
 		if (editor!=null)
 			editor.dispatch({changes: {from: 0, to: editor.state.doc.length, insert: v}});
-	}, [v, editor==null])
+	}, [v])
 
 	return <div ref={cmDiv} className="flex flex-row" />;
 }
@@ -272,8 +273,14 @@ function TestCaseFileEditor({i,which,source}:TestCaseFileProps&{path:string,sour
 		if (editor==null) return;
 
 		const upd = ()=>{
+			const txt = CMText.of(source.split("\n"));
+			if (editor.state.doc.eq(txt)) {
+				setV({lastSrcChange: v.lastSrcChange, txt: null})
+				return;
+			}
+
 			const l = editor.state.doc.length;
-			const changes = ChangeSet.of({from: 0, to: l, insert: source},l);
+			const changes = ChangeSet.of({from: 0, to: l, insert: txt},l);
 			editor.dispatch({changes});
 
 			setV({lastSrcChange: changes, txt: null});

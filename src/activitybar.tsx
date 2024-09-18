@@ -30,9 +30,9 @@ const SmallTestCase = React.memo(({test,i,open: openOpt,setOpen}: TestCaseI&{ope
 			<div className="flex-1" >
 				<HiddenInput minLength={1} maxLength={25} className="overflow-x-clip w-full mb-2" value={test.name} onChange={(e)=>send({type: "setTestName", i, name: e.target.value})} />
 
-				<div className="flex flex-row gap-2 items-center justify-between" >
+				<div className="flex xs:flex-row gap-2 items-center xs:justify-between flex-col justify-center" >
 					<div className="flex flex-row gap-1 items-center" >
-						<IconButton {...d} icon={<Icon icon="edit" className="text-sky-400" />} onClick={() => {
+						<IconButton icon={<Icon icon="edit" className="text-sky-400" />} onClick={() => {
 							send({type: "openTest", i});
 						}} />
 						{test.cancellable==true
@@ -46,7 +46,7 @@ const SmallTestCase = React.memo(({test,i,open: openOpt,setOpen}: TestCaseI&{ope
 							</>}
 					</div>
 
-					<div className="flex flex-row gap-1 items-center" >
+					<div className="flex flex-row gap-2 items-center" >
 						{test.cancellable!=null ? <Spinner color="white" size="sm" /> : (
 							test.err ? <AppTooltip content={
 								<div className="max-w-full" ><TestErr x={test} noFile /></div>
@@ -151,7 +151,7 @@ function App() {
 		<TestSetStatus testSets={tc.testSets} currentTestSet={tc.currentTestSet} />
 		<SetProgram tc={tc} />
 
-		<div className="flex flex-row w-full gap-1" >
+		<div className="flex flex-col xs:flex-row w-full gap-1" >
 			<Button onClick={()=>send({type: "openTest"})} icon={<Icon icon="edit" />} className="bg-sky-700 flex-1" >Open editor</Button>
 			{tc.run.runAll.cancellable
 				? <Button icon={<Spinner color="white" size="sm" />} className="bg-red-600 flex-1" onClick={()=>send({type: "cancelRun"})} >Stop</Button>

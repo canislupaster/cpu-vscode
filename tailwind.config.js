@@ -12,6 +12,9 @@ export default {
       fontFamily: {
         "display": "Chivo, sans",
         "body": "Inter, sans"
+      },
+      screens: {
+        "xs": "350px"
       }
     },
   },

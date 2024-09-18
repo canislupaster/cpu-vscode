@@ -241,7 +241,7 @@ export default class App {
 		this.reducers = {
 			clearRunAll: async () => { await this.cases.clearRunAll(); },
 			openSettings: async () => {
-				commands.executeCommand("workbench.action.openSettings", "cpu.");
+				commands.executeCommand("workbench.action.openSettings", "@ext:thomasqm.cpu");
 			},
 			createTestSet: async ()=>{
 				const name = await window.showInputBox({

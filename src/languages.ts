@@ -35,7 +35,7 @@ class CPP implements Language {
 	name="c++";
 	exts=["cpp","cxx","cc","c++"];
 
-	async compile({compiler, extPath, prog, source}: LanguageCompileOpts): Promise<string[]> {
+	async compile({compiler, extPath, prog, source, testlib}: LanguageCompileOpts): Promise<string[]> {
 		if (compiler!=null) this.compiler=compiler;
 		else if (this.compiler==null) {
 			if (await existsInPath("clang++")) this.compiler="clang++";
@@ -43,7 +43,7 @@ class CPP implements Language {
 			else throw new Error("G++ or Clang not found. Try setting a compiler in settings");
 		}
 
-		return [this.compiler, source, "-isystem", join(extPath, "testlib"), "-o", prog];
+		return [this.compiler, source, ...testlib ? ["-isystem", join(extPath, "testlib")] : [], "-o", prog];
 	}
 }
 

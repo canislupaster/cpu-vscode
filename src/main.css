@@ -11,16 +11,6 @@
 	-ms-user-select: none;
 }
 
-@font-face {
-	font-family: 'Chivo';
-	src: url('../resources/Chivo.ttf') format('truetype');
-}
-
-@font-face {
-	font-family: 'Inter';
-	src: url('../resources/Inter.ttf') format('truetype');
-}
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
