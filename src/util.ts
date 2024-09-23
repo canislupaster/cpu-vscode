@@ -1,16 +1,40 @@
 import { stat } from "node:fs/promises";
-import { WebviewViewProvider, workspace, Event, WebviewView, CancellationToken, Uri, WebviewPanel, CancellationError } from "vscode";
+import { WebviewViewProvider, Event, WebviewView, CancellationToken, Uri, WebviewPanel, CancellationError } from "vscode";
 import { InitState, MessageFromExt, MessageToExt } from "./shared";
 import App from "./main";
+import { parse } from "shell-quote";
+import { createServer } from "node:net";
 
 declare const PROD: boolean;
 export const outDir = PROD ? "dist" : "out";
 
 export const delay = (x: number) => new Promise<void>((res)=>setTimeout(res, x));
 export const exists = (path: string) => stat(path).then(()=>true, ()=>false);
-export const cfg = () => workspace.getConfiguration("cpu");
 export const cancelPromise = (x: CancellationToken) => new Promise<never>((res,rej) => {
 	x.onCancellationRequested(()=>rej(new CancellationError()));
+});
+
+export function argsToArr(args: string): string[] {
+	return parse(args).map(x=>{
+		if (typeof x=="object") {
+			if ("comment" in x) return x.comment;
+			if (x.op=="glob") return x.pattern;
+			else return x.op;
+		} else {
+			return x;
+		}
+	});
+}
+
+// https://stackoverflow.com/a/79001890
+export const portInUse = (port: number) => new Promise<boolean>((res,rej)=>{
+	const server = createServer().listen(port, "localhost", ()=>{
+		server.close();
+		res(false);
+	}).once("error", err=>{
+		if ("code" in err && err.code=="EADDRINUSE") res(true);
+		else rej(err);
+	});
 });
 
 export class CPUWebviewProvider implements WebviewViewProvider {

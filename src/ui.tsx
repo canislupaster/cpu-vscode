@@ -21,7 +21,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, JSX.IntrinsicElements["t
 	{className, children, ...props}: JSX.IntrinsicElements["textarea"], ref
 ) =>
 	<textarea className={twMerge("text-white bg-zinc-800 w-full p-2 border-2 border-zinc-600 focus:outline-none focus:border-blue-500 disabled:bg-zinc-600 disabled:text-gray-400 transition duration-300 rounded-lg resize-y max-h-60 min-h-24", className)}
-		rows={6} {...props} ref={ref} >
+		rows={6} {...props} ref={ref} tabIndex={100} >
 		{children}
 	</textarea>);
 
@@ -38,7 +38,7 @@ export const HiddenInput = ({className, ...props}: React.InputHTMLAttributes<HTM
 		focus:outline-none focus:border-blue-500 transition duration-300 px-1 py-px`, className)}
 		{...props} ></input>
 
-export const IconButton = ({className, icon, disabled, ...props}: {icon?: React.ReactNode, disabled?: boolean}&HTMLAttributes<HTMLButtonElement>) =>
+export const IconButton = ({className, icon, disabled, ...props}: {icon?: React.ReactNode, disabled?: boolean}&JSX.IntrinsicElements["button"]) =>
 	<button className={twMerge("rounded-full p-2 bg-zinc-800 border-zinc-700 border hover:border-zinc-600 active:border-blue-500 flex items-center justify-center aria-expanded:border-blue-500 disabled:bg-zinc-600 disabled:text-gray-400", className)} disabled={disabled} {...props} >
 		{icon}
 	</button>;
@@ -125,7 +125,7 @@ export function Dropdown({parts, trigger}: {trigger?: React.ReactNode, parts: Dr
 	return <Popover placement="bottom" showArrow isOpen={open}
 		onOpenChange={setOpen} triggerScaleOnOpen={false} portalContainer={ctx.rootRef.current!} >
 		<PopoverTrigger><div>{trigger}</div></PopoverTrigger>
-		<PopoverContent className="rounded-md bg-zinc-900 border-gray-800 flex flex-col gap-2 items-stretch px-0 py-0 max-w-60 max-h-80 overflow-y-auto" >
+		<PopoverContent className="rounded-md bg-zinc-900 border-gray-800 flex flex-col gap-2 items-stretch px-0 py-0 max-w-60 max-h-80 overflow-y-auto justify-start" >
 			<div>
 				{parts.map((x,i) => {
 					//copy pasting is encouraged by tailwind!
@@ -287,8 +287,11 @@ export const Card = ({className, children, ...props}: HTMLAttributes<HTMLDivElem
 		{children}
 	</div>;
 
-export const Tag = ({className, children, ...props}: HTMLAttributes<HTMLDivElement>) =>
-	<div className={twMerge("flex flex-row gap-1 items-center bg-sky-600 rounded-2xl p-1 px-4 border-1 border-zinc-600 shadow-lg shadow-sky-400/15", className)} {...props} >
+export const Tag = ({className, children, col, ...props}: HTMLAttributes<HTMLDivElement>&{col?: "secondary"}) =>
+	<div className={twMerge(
+			`flex flex-row gap-1 items-center rounded-2xl p-1 px-4 border-1 border-zinc-600 shadow-lg ${col=="secondary" ? "bg-orange-700 shadow-orange-400/15" : "bg-sky-600 shadow-sky-400/15"}`,
+			className
+		)} {...props} >
 		{children}
 	</div>;
 
@@ -322,9 +325,10 @@ export function useChooseFile(key: string, chosen: (x: string)=>void) {
 export function verdictColor(verdict: TestResult["verdict"]) {
 	switch (verdict) {
 		case "AC": return "green-400";
-		case "RE": return "red-400";
-		case "WA": return "red-400";
-		case "TL": return "yellow-400";
+		case "RE":
+		case "WA":
+		case "INT": return "red-400";
+		case "TL":
 		case "ML": return "yellow-400";
 	}
 }
@@ -336,6 +340,7 @@ export function expandedVerdict(verdict: TestResult["verdict"]) {
 		case "TL": return "Time limit exceeded";
 		case "ML": return "Memory limit exceeded";
 		case "WA": return "Wrong answer";
+		case "INT": return "Bad interaction";
 	}
 }
 
@@ -343,7 +348,7 @@ export function FileName({path, children, ...props}: {path: string}&Partial<Reac
 	//i know, i know...
 	//display only
 	const idx = Math.max(path.lastIndexOf("\\"), path.lastIndexOf("/"));
-	return <AppTooltip content={<div className="flex flex-col max-w-80 p-2 py-4 pt-2 gap-2 items-start" >
+	return <AppTooltip content={<div className="flex flex-col max-w-80 p-2 py-4 pt-2 gap-2 items-start max-w-full" >
 		<Text v="bold" >{path.slice(idx+1)}</Text>
 		<div className="max-w-full break-words text-gray-300 px-2" >
 			Full path: {path}

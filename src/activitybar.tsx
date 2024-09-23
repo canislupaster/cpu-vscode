@@ -1,4 +1,4 @@
-import { RunState, TestCaseI, TestResult } from "./shared";
+import { RunState, RunType, TestCaseI, TestResult } from "./shared";
 import { Anchor, AppTooltip, Button, Card, Divider, DragHandle, dragTCs, HiddenInput, Icon, IconButton, Loading, render, send, Tag, Text, verdictColor } from "./ui";
 import { Spinner } from "@nextui-org/spinner";
 import { useMemo, useState } from "react";
@@ -17,9 +17,9 @@ function SmallTestCaseEditor({i,test}: {i: number}&TestCaseI) {
 	</div>;
 }
 
-const SmallTestCase = React.memo(({test,i,open: openOpt,setOpen}: TestCaseI&{open?: boolean,setOpen:(x: boolean)=>void})=>{
-	const run = (dbg: boolean, stress?: "run"|"generator") => () =>
-		send({type: "runTestCase", i, dbg, stress: stress==undefined ? "none" : stress});
+const SmallTestCase = React.memo(({test,i,open: openOpt,setOpen,interactive}: TestCaseI&{open?: boolean,setOpen:(x: boolean)=>void,interactive:boolean})=>{
+	const run = (dbg: boolean, ty?: RunType) => () =>
+		send({type: "runTestCase", i, dbg, runType: ty??"normal"});
 
 	const open = openOpt ?? (test.tmpAns && test.tmpIn);
 	const d = {disabled: test.cancellable!=null};
@@ -46,7 +46,7 @@ const SmallTestCase = React.memo(({test,i,open: openOpt,setOpen}: TestCaseI&{ope
 							</>}
 					</div>
 
-					<div className="flex flex-row gap-2 items-center" >
+					{test.cancellable!=null || test.lastRun && <div className="flex flex-row gap-2 items-center" >
 						{test.cancellable!=null ? <Spinner color="white" size="sm" /> : (
 							test.err ? <AppTooltip content={
 								<div className="max-w-full" ><TestErr x={test} noFile /></div>
@@ -57,10 +57,19 @@ const SmallTestCase = React.memo(({test,i,open: openOpt,setOpen}: TestCaseI&{ope
 							: <></>
 						)}
 						{test.lastRun && <VerdictText v={test.lastRun.verdict} />}
-					</div>
+					</div>}
 				</div>
 			</div>
 		</div>
+
+		{interactive && <Card className="bg-zinc-900 flex flex-row items-start gap-2 rounded-none pr-3 shadow-sm pt-0 pb-0 pl-0 justify-between" >
+			<Tag className="pr-6 rounded-l-none" col="secondary" >
+				<Icon icon="robot" /> <Text v="bold" >Interactive</Text>
+			</Tag>
+			<IconButton {...d} className="self-center"
+				icon={<Icon icon="debug" className="text-green-500" />}
+				onClick={run(true, "runInteractor")} />
+		</Card>}
 
 		{test.stress && <Card className="bg-zinc-900 flex flex-col items-start gap-2 rounded-none px-3 shadow-sm mt-1 pt-0" >
 			<Tag className="pr-6 rounded-t-none" >
@@ -78,7 +87,7 @@ const SmallTestCase = React.memo(({test,i,open: openOpt,setOpen}: TestCaseI&{ope
 				<IconButton {...d} icon={<Icon icon="play" className="text-green-500" />} onClick={run(false, "generator")} />
 				<IconButton {...d} icon={<Icon icon="debug" className="text-green-500" />} onClick={run(true, "generator")} />
 				<Button icon={<Icon icon="run-all" />} className="enabled:bg-sky-600"
-					disabled={test.cancellable!=null} onClick={run(false, "run")} >Run stress</Button>
+					disabled={test.cancellable!=null} onClick={run(false, "stress")} >Run stress</Button>
 			</div>
 
 			{test.stress.status && <Progress size="md" isIndeterminate={test.stress.status.i==0 && test.cancellable==true} value={test.stress.status.i} maxValue={test.stress.status.maxI} color="primary" className="mt-2" ></Progress>}
@@ -115,22 +124,23 @@ const RunAllStatus = React.memo(({runAll}: {runAll: RunState["runAll"]})=>{
 	const lr = runAll.lastRun;
 	if (lr==null) return <></>;
 
-	return <div className="flex flex-row items-center gap-2 justify-between mt-2 px-4" >
-		<div className="flex flex-col gap-1 flex-1" >
-			<div className="flex flex-col gap-px" >
-				<Text v="dim" >
-					{lr.progress[0]} of {lr.progress[1]} test cases{runAll.cancellable==null && " (stopped)"}
-					{runAll.cancellable==null && <>{" "}<Anchor onClick={()=>send({type:"clearRunAll"})} >Dismiss.</Anchor></>}
-				</Text>
+	return <div className="flex flex-col gap-px mt-2 px-4" >
+		<Text v="dim" >
+			{lr.progress[0]} of {lr.progress[1]} test cases{runAll.cancellable==null && " (stopped)"}
+			{runAll.cancellable==null && <>{" "}<Anchor onClick={()=>send({type:"clearRunAll"})} >Dismiss.</Anchor></>}
+		</Text>
+
+		<div className="flex flex-row items-start gap-2 justify-between" >
+			<div className="flex flex-col gap-1 flex-1 mt-1" >
 				<Progress size="md" isIndeterminate={lr.progress[0]==0} value={lr.progress[0]} maxValue={lr.progress[1]} color="secondary" ></Progress>
+
+				<RunStats x={lr} />
 			</div>
 
-			<RunStats x={lr} />
-			
-			<TestErr x={runAll} pre="Run all" />
+			{lr.verdict && <VerdictText v={lr.verdict} big />}
 		</div>
 
-		{lr.verdict && <VerdictText v={lr.verdict} big />}
+		<TestErr x={runAll} pre="Run all" className="mt-2" />
 	</div>;
 });
 
@@ -174,7 +184,8 @@ function App() {
 
 		<div ref={drag} className="flex flex-col gap-2" >
 			{eachSetOpen.map(([k,open,setOpen])=>
-				<SmallTestCase test={tc.cases[k]} i={Number(k)} key={k} open={open} setOpen={setOpen} />
+				<SmallTestCase test={tc.cases[k]} i={Number(k)} key={k} open={open}
+					setOpen={setOpen} interactive={tc.cfg.interactor!=null} />
 			)}
 		</div>
 		

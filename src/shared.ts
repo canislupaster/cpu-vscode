@@ -1,3 +1,5 @@
+import { LanguageConfig, LanguagesConfig } from "./languages";
+
 export class CompileError extends Error {
 	constructor(public err: string, public file: string) {super(err);}
 }
@@ -10,10 +12,19 @@ export type RunCfg = {
 	disableTl: boolean,
 	tl: number, //s
 	ml: number, //mb
+	fileIO: {input: string, output: string}|null,
+	checker: Checker|null,
+	interactor: string|null,
 	eof: boolean
 };
 
-export const defaultRunCfg: RunCfg = {disableTl: false, tl: 10, ml: 512, eof: false};
+export const defaultRunCfg: RunCfg = {
+	disableTl: false, tl: 10,
+	ml: 512, eof: false,
+	checker: null, interactor: null, fileIO: null
+};
+
+export type RunType = "normal"|"stress"|"generator"|"runInteractor";
 
 //my giant reducer!
 export type MessageToExt = {
@@ -31,13 +42,16 @@ export type MessageToExt = {
 	type: "runTestCase",
 	i: number,
 	dbg: boolean,
-	stress: "none"|"run"|"generator"
+	runType: RunType
 } | {
 	type: "cancelRun",
 	i?: number
 } | {
 	type: "setChecker",
 	checker: string|null
+} | {
+	type: "setInteractor",
+	clear: boolean
 } | {
 	type: "setCfg",
 	cfg: RunCfg
@@ -58,7 +72,7 @@ export type MessageToExt = {
 	i: number, which: "inFile" | "ansFile",
 	ty: "import"|"create"|"detach"
 } | {
-	type: "setProgram", clear: boolean
+	type: "setProgram", cmd: "clear"|"open"|"setLast"
 } | {
 	type: "testCaseInput", inp: string
 } | {
@@ -68,7 +82,7 @@ export type MessageToExt = {
 } | {
 	type: "renameTestSet", name: string
 } | {
-	type: "switchTestSet"|"deleteTestSet", i: number
+	type: "switchTestSet"|"deleteTestSet"|"openTestSetUrl", i: number
 } | {
 	type: "updateStress", i: number, stress: Partial<Omit<Stress,"status">>
 } | {
@@ -83,10 +97,13 @@ export type MessageToExt = {
 	type: "clearRunAll"
 } | {
 	type: "openSettings"
+} | {
+	type: "setLanguageCfg",
+	language: string, cfg: Partial<LanguageConfig>
 };
 
 export type TestResult = {
-	verdict: "AC"|"RE"|"TL"|"ML"|"WA",
+	verdict: "AC"|"RE"|"TL"|"ML"|"WA"|"INT",
 	wallTime: number|null, cpuTime: number|null,
 	mem: number|null, exitCode: number|null
 };
@@ -141,17 +158,23 @@ export type TestCaseI = {i: number, test: TestCase};
 
 //group not null <-> imported from companion
 //maybe ill make things neater. but not now!
-export type TestSetMeta = {name: string, group?: string, mod?: number};
+export type TestSetMeta = {
+	name: string, group?: string,
+	problemLink?: string,
+	mod?: number, next?: number
+};
+
 export type TestSets = Record<number,TestSetMeta>;
+export type OpenFile = {type:"last"|"file", path:string}|null;
 
 export type InitState = {
 	cases: Record<number,TestCase>,
 	cfg: RunCfg,
-	checker: Checker|null,
+	languagesCfg: LanguagesConfig,
 	checkers: string[],
 	openTest?: number,
 	run: RunState,
-	openFile: string|null,
+	openFile: OpenFile,
 	order: number[],
 	testSets: TestSets,
 	currentTestSet: number,
@@ -170,12 +193,14 @@ export type MessageFromExt = {
 	type: "updateTestCases",
 	testCasesUpdated: Record<number, TestCase|null>
 } | {
-	type: "updateChecker",
-	checker: Checker|null,
+	type: "updateCheckers",
 	checkers: string[]
 } | {
 	type: "updateCfg",
 	cfg: RunCfg
+} | {
+	type: "updateLanguagesCfg",
+	cfg: LanguagesConfig
 } | {
 	type: "testCaseRead",
 	i: number,
@@ -186,11 +211,11 @@ export type MessageFromExt = {
 } | {
 	//for running test only
 	type: "testCaseStream",
-	which: "stdout"|"stderr"|"judge", txt: string
+	which: "stdout"|"stderr"|"judge"|"interaction", txt: string
 } | {
 	type: "openTest", i?: number, focus: boolean
 } | {
-	type: "updateProgram", path: string|null
+	type: "updateProgram", openFile: OpenFile
 } | {
 	type: "updateRunState", run: RunState
 } | {

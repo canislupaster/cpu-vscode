@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { RunCfg, Stress, TestCase, TestCaseI, TestResult } from "./shared";
 import { Alert, Anchor, AppModal, Button, Card, Divider, DragHandle, dragTCs, expandedVerdict, FileName, Icon, IconButton, Input, render, Select, send, Tag, Text, Textarea, useChooseFile, verdictColor } from "./ui";
 import { Spinner } from "@nextui-org/spinner";
@@ -7,6 +7,7 @@ import React from "react";
 import { TestCaseFile, TestCaseOutput, useTestSource, useTestCases, RunStats, TestErr, appInit } from "./testcase";
 import { Checkbox } from "@nextui-org/checkbox";
 import { ModalBody, ModalContent, ModalFooter, ModalHeader, useDisclosure } from "@nextui-org/modal";
+import { LanguageConfig } from "./languages";
 
 const Verdict = ({x}: {x: TestResult}) => <div className="flex flex-col items-end" >
 	<Text v="bold" className={`text-${verdictColor(x.verdict)}`} >
@@ -43,7 +44,7 @@ function TestStressOptions({i, stress}: {stress: Stress, i: number}) {
 		</div>
 		<Textarea value={stress.args} onChange={(e)=>{
 			send({type: "updateStress", i, stress: {args: e.target.value}});
-		}} className="resize-none h-14 max-w-72" ></Textarea>
+		}} className="resize-none h-14 max-w-72" />
 	</div>;
 }
 
@@ -112,6 +113,9 @@ const TestCase = React.memo(({test,i,open,focus}: TestCaseI&{open: boolean,focus
 			{test.ansFile && <div className="inline" >
 				<Text v="dim" >Answer: </Text> <FileName path={test.ansFile} />. {detach("ansFile")}
 			</div>}
+
+			<div className="flex flex-col self-start" >
+			</div>
 		</div>
 	</div>;
 });
@@ -182,15 +186,59 @@ function StressTestCreator({open, onOpenChange}: {open: boolean, onOpenChange: (
 	</AppModal>;
 }
 
+function LanguageCfg({cfg, language}: {cfg: LanguageConfig, language: string}) {
+	const inp = (k: keyof LanguageConfig, name: string, placeholder?: string) =>
+		cfg[k]!=undefined && <>
+			<Text>{name}</Text>
+			<Input placeholder={placeholder} defaultValue={cfg[k]}
+				onChange={(ev)=>send({type:"setLanguageCfg", language, cfg: {[k]: ev.target.value}})} />
+		</>;
+
+	return <Card className="self-stretch mx-8" >
+		<Text v="bold" >{language[0].toUpperCase()}{language.slice(1)} settings</Text>
+
+		<div className="grid grid-cols-[auto_1fr] gap-x-7 gap-y-2 mt-2 items-center" >
+			{inp("compiler", "Compiler", "(default)")}
+			{inp("runtime", "Runtime", "(default)")}
+			{inp("commonArgs", "Compile arguments")}
+			{inp("fastArgs", "Compile arguments (run only)")}
+			{inp("debugArgs", "Compile arguments (debug only)")}
+		</div>
+	</Card>;
+}
+
 function App() {
 	const tc = useTestCases();
-	const checkerV = tc.checker ? (tc.checker.type=="file"
-		? {label: tc.checker.path, value: null} : {label: tc.checker.name, value: tc.checker.name}) : null;
+	const checkerV = tc.cfg.checker ? (
+		tc.cfg.checker.type=="file" ? {label: tc.cfg.checker.path, value: null}
+		: {label: tc.cfg.checker.name, value: tc.cfg.checker.name}) : null;
+
+	const [language, setLanguage] = useState<string|null>(null);
 
 	const modCfg = (x: Partial<RunCfg>) => send({type:"setCfg", cfg: {...tc.cfg, ...x}});
 	const [order, drag] = dragTCs(tc.ordered);
 
 	const {isOpen, onOpen, onOpenChange} = useDisclosure();
+
+	//dirty file io, cleared when updated
+	//sorry for complexity
+	const [fileIO, setFileIO] = useState<RunCfg["fileIO"]|"empty">(null);
+	const xfileIO = fileIO=="empty" ? {input:"",output:""} : fileIO ?? tc.cfg.fileIO;
+	const isValid = useMemo(()=>{
+		if (fileIO==null || fileIO=="empty") return null;
+		if (fileIO.input==fileIO.output) return "The input file can't be the same as the output file!";
+		const fileRe = /^[^\\/:*?"<>|]+$/;
+
+		if (!fileRe.test(fileIO.input)) return "Invalid input filename";
+		if (!fileRe.test(fileIO.output)) return "Invalid output filename";
+		return null;
+	}, [fileIO]);
+
+	useEffect(() => {
+		if (fileIO!=null && fileIO!="empty" && isValid==null) modCfg({fileIO});
+	}, [fileIO, tc.cfg]);
+
+	useEffect(() => setFileIO(null), [tc.cfg.fileIO])
 
 	return <div className="flex flex-col gap-2 pt-4 p-3" >
 		<StressTestCreator open={isOpen} onOpenChange={onOpenChange} />
@@ -198,14 +246,24 @@ function App() {
 		<Text v="big" >Test editor</Text>
 
 		<div className="flex flex-col items-start gap-2" >
-			<div className="grid grid-cols-2 gap-x-7 gap-y-2 mt-2 items-center " >
+			<div className="grid grid-cols-2 gap-x-7 gap-y-2 mt-2 items-center" >
+				<Text>Interactor</Text>
+				<div className="flex flex-row gap-2 items-center" >
+					{tc.cfg.interactor==null ? <Text v="dim" >
+						No interactor set
+					</Text> : <>
+						<FileName path={tc.cfg.interactor} ></FileName>
+						<IconButton icon={<Icon icon="close" />} onClick={()=>send({type:"setInteractor", clear:true})} />
+					</>}
+					<Button onClick={()=>send({type:"setInteractor",clear:false})} >Choose</Button>
+				</div>
 				<Text>Checker</Text>
 				<Select value={checkerV}
 					options={[...tc.checkers.map(x=>({value: x, label: x})), {value: null, label: "Choose file..."}]}
 					// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
 					onChange={(v: any) => send({type: "setChecker", checker: v.value as string})}
 					isOptionSelected={(x)=>
-						tc.checker!=null && tc.checker.type=="default" && tc.checker.name==x as string
+						tc.cfg.checker!=null && tc.cfg.checker.type=="default" && tc.cfg.checker.name==x as string
 					} />
 				<Text>Disable time limit</Text>
 				<Checkbox isSelected={tc.cfg.disableTl} onValueChange={(x)=>modCfg({disableTl: x})} ></Checkbox>
@@ -223,7 +281,29 @@ function App() {
 					<Text v="dim" >This will disable interacting with your program</Text>
 				</div>
 				<Checkbox isSelected={tc.cfg.eof} onValueChange={(x)=>modCfg({eof: x})} ></Checkbox>
+
+				<Text>Use file I/O</Text>
+				<Checkbox isSelected={xfileIO!=null} onValueChange={(v)=>{
+					if (!v) modCfg({fileIO: null});
+					setFileIO(v ? "empty" : null);
+				}} classNames={{label: "text-sm"}} />
+
+				{xfileIO!=null && <>
+					<Text>Input filename</Text>
+					<Input value={xfileIO.input} onChange={(ev)=>setFileIO({...xfileIO, input: ev.target.value})} />
+					<Text>Output filename</Text>
+					<Input value={xfileIO.output} onChange={(ev)=>setFileIO({...xfileIO, output: ev.target.value})} />
+				</>}
+
+				{isValid!=null && <Alert className="mt-2 col-span-2" bad title="Invalid file I/O" txt={isValid} />}
+
+				<Text>Language settings for</Text>
+				<Select value={language!=null ? {label: language, value: language} : null} placeholder="Select language..."
+					options={Object.keys(tc.languagesCfg).map(k=>({value:k,label:k}))}
+					onChange={(v) => setLanguage((v as {value:string}).value)} />
 			</div>
+
+			{language!=null && <LanguageCfg language={language} cfg={tc.languagesCfg[language]} />}
 			
 			<div className="flex flex-row gap-2 p-2 justify-center w-full flex-wrap" >
 				<Button icon={<Icon icon="new-file" />} onClick={()=>send({type: "importTests"})} >Import test cases</Button>

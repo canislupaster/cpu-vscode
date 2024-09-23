@@ -18,7 +18,7 @@ import { delay } from "./util";
 type Task = {
 	name: string,
 	group: string,
-	// url: string,
+	url: string,
 	// interactive: boolean,
 	// memoryLimit: number,
 	// timeLimit: number,
@@ -27,7 +27,7 @@ type Task = {
 	// input: InputConfiguration,
 	// output: OutputConfiguration,
 	batch: {
-		// id: string,
+		id: string,
 		size: number
 	}
 };
@@ -35,8 +35,9 @@ type Task = {
 export class Companion {
 	port=4244; //sorry hightail
 
-	private evSrc=new EventEmitter<Task>()
+	private evSrc=new EventEmitter<Task[]>()
 	event=this.evSrc.event;
+	batches: Record<string,Task[]> = {};
 
 	private app=new Hono().post("/", async (c) => {
 		const json: unknown = await c.req.json();
@@ -45,13 +46,17 @@ export class Companion {
 		//typescript proved it
 		//just that pro 😎
 		if (typeof json!="object" || !json
-			|| !("name" in json) || !("group" in json) || !("tests" in json)
-			|| typeof json.name != "string" || typeof json.group!="string" || !Array.isArray(json.tests)
+			|| !("name" in json) || !("group" in json) || !("tests" in json) || !("url" in json)
+			|| typeof json.name != "string" || typeof json.group!="string" || typeof json.url!="string" || !Array.isArray(json.tests)
 			|| !("batch" in json) || typeof json.batch!="object" || !json.batch || !("size" in json.batch)
-			|| typeof json.batch.size!="number")
+			|| typeof json.batch.size!="number" || !("id" in json.batch) || typeof json.batch.id!="string")
 			return c.json({status: "invalid"});
 
-		const task = {name: json.name, group: json.group, tests: [] as Task["tests"], batch: {size: json.batch.size}};
+		const task: Task = {
+			name: json.name, group: json.group, tests: [] as Task["tests"], url: json.url,
+			batch: {size: json.batch.size, id: json.batch.id}
+		};
+
 		for (const x of json.tests as unknown[]) {
 			if (typeof x!="object" || !x || !("input" in x) || !("output" in x)
 				|| typeof x.input!="string" || typeof x.output!="string")
@@ -60,7 +65,16 @@ export class Companion {
 			task.tests.push({input: x.input, output: x.output});
 		}
 
-		this.evSrc.fire(json as Task);
+		const pbatch = this.batches[task.batch.id] ?? [];
+		pbatch.push(task);
+
+		if (pbatch.length==task.batch.size) {
+			this.evSrc.fire(pbatch);
+			delete this.batches[task.batch.id];
+		} else {
+			this.batches[task.batch.id] = pbatch;
+		}
+
 		return c.json({status: "ok"});
 	}).get("/", async (c) => {
 		return c.json({status: "ok"});

@@ -1,16 +1,16 @@
-import { CancellationToken, EventEmitter, ExtensionContext, ProcessExecution, Task, tasks, TaskScope, Uri, workspace, extensions, debug, Event, Disposable, LogOutputChannel, DebugSession, CancellationError, TaskExecution } from "vscode";
+import { CancellationToken, EventEmitter, ExtensionContext, ProcessExecution, Task, tasks, TaskScope, Uri, workspace, extensions, debug, Event, Disposable, LogOutputChannel, DebugSession, CancellationError, TaskExecution, window } from "vscode";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rm } from "node:fs/promises";
 import { basename, dirname, extname, join } from "node:path";
-import { cancelPromise, cfg, delay, exists } from "./util";
+import { argsToArr, cancelPromise, delay, exists } from "./util";
 import { execFile, spawn } from "node:child_process";
 import { createReadStream, createWriteStream } from "node:fs";
 import pidusage from "pidusage";
 import { BaseLanguageClient } from "vscode-languageclient";
 import { CompileError, RunError, TestResult } from "./shared";
-import {parse} from "shell-quote";
 import Mustache from "mustache";
-import { extToLanguage, Language } from "./languages";
+import { Language, LanguageProvider } from "./languages";
+import { Readable, Writable } from "node:stream";
 
 //https://github.com/clangd/vscode-clangd/blob/master/api/vscode-clangd.d.ts
 interface ClangdApiV1 { languageClient?: BaseLanguageClient };
@@ -35,18 +35,22 @@ export type CompileResult = {
 };
 
 export type Test = {
-	output: string, prog: CompileResult,
+	output: string,
+	interactor?: CompileResult,
+	prog: CompileResult,
 	checker?: CompileResult, args?: string,
 	name: string,
 	inFile?: string,
+	noStdio?: boolean,
 	ansFile?: string,
-	dbg: boolean,
-	onOutput?: (x: string, which: "stderr"|"stdout")=>void,
+	dbg: "normal"|"interactor"|null,
+	onOutput?: (x: string, which: "stderr"|"stdout"|"interaction")=>void,
 	onJudge?: (judge: string)=>void,
 	onInput?: Event<string>,
 	stop: CancellationToken,
 	tl?: number, ml?: number, eof: boolean,
-	cwd?: string
+	cwd?: string,
+	end?: ()=>Promise<void>
 };
 
 function kill(pid: number) {
@@ -65,12 +69,14 @@ function kill(pid: number) {
 type Program = {
 	dispose: ()=>void, write: (s: string)=>void, resume: ()=>void,
 	exitCode: number|null, pid: number|null, closed: boolean,
-	closePromise: Promise<void>, spawnPromise: Promise<number>
+	closePromise: Promise<void>, spawnPromise: Promise<number>,
+	stdin: Writable, stdout: Readable
 };
 
 type ProgramStartOpts = {
 	prog: string, cwd?: string, args?: string[],
 	stdin?: string, stdout?: string,
+	pipeStdin?: Readable, pipeStdout?: Writable,
 	eof: boolean,
 	doStop?: boolean,
 	runerr: (msg: string, src?: Error)=>RunError,
@@ -82,20 +88,8 @@ function attachError(runerr: ProgramStartOpts["runerr"],
 	x.once("error", (err) => runerr(msg, err));
 };
 
-function argsToArr(args: string): string[] {
-	return parse(args).map(x=>{
-		if (typeof x=="object") {
-			if ("comment" in x) return x.comment;
-			if (x.op=="glob") return x.pattern;
-			else return x.op;
-		} else {
-			return x;
-		}
-	});
-}
-
 function startChildProgram({
-	prog,stdin,stdout,doStop,runerr,onOutput,eof,cwd,args
+	prog,stdin,stdout,doStop,runerr,onOutput,eof,cwd,args,pipeStdin,pipeStdout
 }: ProgramStartOpts): Program {
 	//sorry we're too poor for ptrace :)
 	const cp = spawn(prog, args, { cwd });
@@ -107,7 +101,7 @@ function startChildProgram({
 	//usually spawning is instant and we need to register handlers immediately to capture output
 	const launched = cp.pid==null || cp.stdout==null || cp.stderr==null;
 
-	const o: Partial<Program&{handle: ()=>number}>  = {
+	const o: Omit<Program&{handle: ()=>number}, "spawnPromise">&{spawnPromise?: Program["spawnPromise"]}  = {
 		handle() {
 			if (o.closed && cp.pid!=undefined) {
 				kill(cp.pid);
@@ -128,17 +122,22 @@ function startChildProgram({
 				cp.stdout.pipe(write);
 			}
 
+			if (pipeStdout) cp.stdout.pipe(pipeStdout);
+
 			if (stdin) {
 				const inp = createReadStream(stdin, "utf-8");
 				attachError(runerr, inp, "Failed to open input file");
 				inp.pipe(cp.stdin, {end: eof});
 			}
 
+			if (pipeStdin) pipeStdin.pipe(cp.stdin);
+
 			return cp.pid;
 		},
 		exitCode: null,
 		closed: false,
 		pid: null,
+		stdin: cp.stdin, stdout: cp.stdout,
 		resume() {
 			if (!cp.kill("SIGCONT"))
 				throw runerr("Couldn't resume process");
@@ -163,8 +162,8 @@ function startChildProgram({
 	//but fuck that!
 	//i swear this would look sane without typescript :)
 	o.spawnPromise=!launched ? new Promise(res=>{
-		cp.once("spawn", ()=>res(o.handle!()));
-	}) : Promise.resolve(o.handle!());
+		cp.once("spawn", ()=>res(o.handle()));
+	}) : Promise.resolve(o.handle());
 
 	return o as Program;
 }
@@ -174,6 +173,7 @@ export class Runner {
 	private cache: Cache;
 	// wait for promise when matching active
 	private activeCompilations: Record<string, Promise<void>> = {};
+	languages = new LanguageProvider();
 
 	constructor(private ctx: ExtensionContext, private log: LogOutputChannel) {
 		this.cache=ctx.globalState.get<Cache>("cache") ?? {entries: [], dir: this.getBuildDir()};
@@ -191,7 +191,7 @@ export class Runner {
 	}
 
 	getBuildDir() {
-		const buildDir = cfg().get<string>("buildDir");
+		const buildDir = workspace.getConfiguration("cpu.buildDir").get<string>("");
 		if (buildDir && buildDir.length>0) return buildDir;
 		if (this.ctx.storageUri) return join(this.ctx.storageUri?.fsPath, "build");
 		else if (this.ctx.globalStorageUri) return join(this.ctx.globalStorageUri?.fsPath, "build");
@@ -206,11 +206,10 @@ export class Runner {
 	async compile({file,cached,type,testlib,stop}: CompileRequest): Promise<CompileResult> {
 		if (!workspace.isTrusted) throw new CompileError("Workspace is not trusted", file);
 		if (!await exists(file)) throw new CompileError("Program not found", file);
-		const language = extToLanguage[extname(file)];
-		if (language==undefined) throw new CompileError(`Unrecognized extension ${extname(file)}`, file);
+		const language = this.languages.getLanguage(file);
+		if (language==null) throw new CompileError(`Unrecognized extension ${extname(file)}`, file);
 		if (language.compile==undefined) return {prog: file, lang: language, source: file};
 
-		const config = cfg();
 		const buildDir = this.getBuildDir();
 		await mkdir(buildDir, {recursive: true});
 
@@ -223,12 +222,7 @@ export class Runner {
 		const fileSrc = await readFile(file, "utf-8");
 		hash.update(fileSrc);
 
-		const compiler = config.get<Record<string,string>>("compiler")?.[language.name]??"";
-		const args = argsToArr(config.get<Record<string,string>>("compileArgs.common")?.[language.name] ?? "");
-		args.push(...argsToArr(config.get<Record<string,string>>(`compileArgs.${type}`)?.[language.name] ?? ""));
-
-		hash.update(compiler);
-		for (const arg of args) hash.update(arg);
+		language.compileHash(hash, type);
 
 		const hashStr = hash.digest().toString("hex");
 		const path = join(buildDir,hashStr);
@@ -236,16 +230,16 @@ export class Runner {
 		if (hashStr in this.activeCompilations)
 			await this.activeCompilations[hashStr];
 
+		let args: string[];
 		try {
-			args.unshift(...await language.compile({
-				compiler: compiler.length>0 ? compiler : null,
-				extPath: this.ctx.extensionPath, prog: path, source: file, testlib
-			}));
+			args=await language.compile({
+				extPath: this.ctx.extensionPath, prog: path, source: file, testlib, type
+			});
 		} catch (e) {
 			if (e instanceof Error) throw new CompileError(e.message, file);
 		}
 
-		let exec: TaskExecution;
+		let exec: TaskExecution|undefined;
 		const doCompile = async () => {
 			const cwd = this.getCwd(file);
 
@@ -291,6 +285,8 @@ export class Runner {
 				}
 			}));
 
+			if (window.terminals.length==0) window.createTerminal();
+
 			exec = await tasks.executeTask(task);
 			//um depending on how this is executed ig task could end before below, not sure how vscode queues the task and shit or why the above is a promise.
 			const res = await Promise.race([
@@ -315,7 +311,10 @@ export class Runner {
 			return path;
 		};
 
-		const prom = doCompile().finally(()=>exec?.terminate());
+		const prom = doCompile().finally(()=>{
+			exec?.terminate();
+		});
+
 		this.activeCompilations[hashStr] = prom.then(()=>{}).catch(()=>{});
 		return {prog: await prom, lang: language, source: file};
 	}
@@ -323,10 +322,10 @@ export class Runner {
 	evaluateStressArgs(args: string, i: number) { return Mustache.render(args, {i}); }
 
 	async run({
-		output,prog,checker,name,inFile,ansFile,
-		dbg,stop,onInput,onOutput,onJudge,tl,ml,eof,cwd,args
+		output,prog,checker,name,inFile,ansFile,interactor,noStdio,
+		dbg,stop,onInput,onOutput,onJudge,tl,ml,eof,cwd,args,end
 	}: Test): Promise<TestResult|null> {
-		cwd ??= join(prog.prog,"..");
+		cwd ??= this.getCwd(prog.source);
 		if (tl!=undefined) tl*=1000; // in ms
 		let pid:number|null=null;
 
@@ -362,14 +361,11 @@ export class Runner {
 		const onErrorPromise = new Promise<RunError>(errEvent.event).then(x=>{ throw x; });
 		let debugSessionEndPromise = Promise.resolve();
 
-		const config = cfg();
-		const getArgs = async (x: CompileResult, argsArr: string[]) => {
+		const getArgs = async (x: CompileResult, argsArr: string[], dbg: boolean) => {
 			try {
 				if (x.lang.run!=undefined) {
-					const runt = config.get<Record<string,string>>("runtime")?.[x.lang.name]??"";
 					return [...await x.lang.run({
-						prog: x.prog, source: x.source,
-						runtime: runt.length>0 ? runt : null
+						prog: x.prog, source: x.source, dbg
 					}), ...argsArr];
 				} else {
 					return [x.prog, ...argsArr];
@@ -381,28 +377,64 @@ export class Runner {
 		};
 
 		try {
-			if (dbg && prog.lang.name!="c++") throw runerr("Can't debug non-C++ programs yet");
-
+			if (dbg && prog.lang.debug==undefined) throw runerr("This language does not support debugging");
 			if (!workspace.isTrusted) throw runerr("Workspace is not trusted");
+			if (dbg=="interactor" && interactor==undefined) throw runerr("No interactor specified to debug");
+			if (interactor!=undefined && noStdio) throw runerr("Can't use interactor without standard input/output");
 
-			const [progArg0, ...progArgs] = await getArgs(prog, args!=undefined ? argsToArr(args) : []);
+			const [progArg0, ...progArgs] = await getArgs(prog, args!=undefined ? argsToArr(args) : [], dbg=="normal");
+
+			log("Starting program");
 			const cp = startChildProgram({
-				prog: progArg0, stdin: inFile, stdout: output, runerr,
-				doStop: dbg, onOutput, eof, args: progArgs, cwd,
+				prog: progArg0, args: progArgs,
+				stdin: interactor==undefined && !noStdio ? inFile : undefined,
+				stdout: interactor==undefined && !noStdio ? output : undefined,
+				runerr, doStop: dbg=="normal" && prog.lang.stopOnDebug,
+				onOutput, eof, cwd
 			});
 
 			cbs.push(cp);
+
+			let interactorProg: Program|undefined;
+			if (interactor!=undefined) {
+				const [intArg0, ...intArgs] = await getArgs(interactor, [inFile ?? "", output], dbg=="interactor")
+				log("Starting interactor");
+				interactorProg = startChildProgram({
+					prog: intArg0, args: intArgs,
+					pipeStdin: cp.stdout, pipeStdout: cp.stdin, runerr,
+					doStop: dbg=="interactor" && interactor.lang.stopOnDebug,
+					onOutput: onOutput==undefined ? undefined : (x,w)=>{
+						onOutput(x,w=="stdout" ? "interaction" : "stderr");
+					},
+					eof: false, cwd
+				});
+			}
+
+			if (interactorProg) cbs.push(interactorProg);
 
 			pid = await Promise.race([
 				cancelPromise, onErrorPromise, cp.spawnPromise,
 				timeout(10_000, "Process took >10s to spawn")
 			]);
 
-			if (dbg) {
-				log("Starting debugger");
+			let interactorPid: number|null=null;
+			if (interactorProg) {
+				interactorPid = await Promise.race([
+					cancelPromise, onErrorPromise,
+					interactorProg.spawnPromise, timeout(10_000, "Interactor took >10s to spawn")
+				]);
+			}
 
-				const codelldb = extensions.getExtension("vadimcn.vscode-lldb")!;
-				if (!codelldb.isActive) await codelldb.activate();
+			if (dbg) {
+				//interactor undefined-ness checked above
+				const launchCfg = await Promise.race([
+					cancelPromise, onErrorPromise, prog.lang.debug!({ //debug may wait for port to open and stuff
+						prog: dbg=="interactor" ? interactor!.prog : prog.prog,
+						pid: dbg=="interactor" ? interactorPid! : pid
+					})
+				]);
+
+				log("Starting debugger");
 
 				cbs.push(debug.onDidStartDebugSession((x)=>{
 					if (!dbgStarted) {
@@ -412,17 +444,18 @@ export class Runner {
 				}));
 
 				//attaching resumes program
-				if (!await debug.startDebugging(workspace.getWorkspaceFolder(Uri.file(prog.prog)), {
-					type: "lldb", request: "attach",
-					name: "Attach", program: prog.prog,
-					pid, expressions: "native"
-				}).then(x=>x, (reason)=>{
-					runerr("Couldn't start debugger", reason instanceof Error ? reason : undefined);
-					return false;
-				})) {
+				if (!await debug.startDebugging(workspace.getWorkspaceFolder(Uri.file(prog.source)), launchCfg)
+					.then(x=>x, (reason)=>{
+						runerr("Couldn't start debugger", reason instanceof Error ? reason : undefined);
+						return false;
+					})
+				) {
 					log("Debugging cancelled, stopping program");
 					return null;
 				}
+
+				if (dbg=="interactor") interactorProg!.resume();
+				else cp.resume();
 
 				debugSessionEndPromise = new Promise<void>(res=>
 					cbs.push(debug.onDidTerminateDebugSession((e)=>{
@@ -459,28 +492,29 @@ export class Runner {
 			}));
 
 			const res = await Promise.race([
-				cp.closePromise, cancelPromise, onErrorPromise,
+				Promise.all([cp.closePromise, interactorProg ? interactorProg.closePromise : Promise.resolve()]),
+				cancelPromise, onErrorPromise,
 				new Promise(limitExceeded.event)
 			]);
 
-			if (!cp.closed) {
-				if (dbg && dbgSession) {
-					log("Waiting for debug session to end");
-					await Promise.race([ debugSessionEndPromise, cancelPromise, onErrorPromise ]);
-				}
-
-				cp.dispose();
+			if (((interactorProg && !interactorProg.closed) || !cp.closed) && dbgSession) {
+				log("Waiting for debug session to end before killing processes");
+				await Promise.race([ debugSessionEndPromise, cancelPromise, onErrorPromise ]);
 			}
+
+			cp.dispose();
+			interactorProg?.dispose();
 
 			const ret = (v: TestResult["verdict"]): TestResult =>
 				({verdict: v, wallTime, cpuTime, mem, exitCode: cp.exitCode});
 
 			if (res=="ML" || res=="TL") return ret(res);
+			else if (interactorProg && interactorProg.exitCode!=0) return ret("INT");
 			else if (cp.exitCode!=0) return ret("RE");
 
 			if (inFile && ansFile && checker) {
 				log("Checking output...");
-				const [checkerArg0, ...checkerArgs] = await getArgs(checker, [inFile, output, ansFile]);
+				const [checkerArg0, ...checkerArgs] = await getArgs(checker, [inFile, output, ansFile], false);
 				const x = execFile(checkerArg0, checkerArgs, { cwd }, (err, stdout, stderr) => {
 					let jout = x.exitCode!=null ? `Checker exited with code ${x.exitCode}` : `Checker was killed`;
 					if (stdout.length>0) jout+=`\n${stdout}`;
@@ -533,6 +567,12 @@ export class Runner {
 			if (errs.length==1) throw errs[0];
 			// eslint-disable-next-line no-unsafe-finally
 			else if (errs.length>0) throw new AggregateError(errs);
+
+			await end?.();
 		}
+	}
+
+	dispose() {
+		this.languages.dispose();
 	}
 }

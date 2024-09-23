@@ -1,12 +1,13 @@
 //ok fuck esbuild is so crappy or something, react needs to be included for <></> to work
 import React, { useEffect, useRef, useState } from "react";
 import { InitState, RunState, TestCase, testErr, TestOut, TestResult, TestSets } from "./shared";
-import { IconButton, send, useMessage, Text, Icon, Button, Card, Textarea, verdictColor, FileName, Alert, HiddenInput, Dropdown, DropdownPart, Input, toSearchString } from "./ui";
+import { IconButton, send, useMessage, Text, Icon, Button, Card, Textarea, verdictColor, FileName, Alert, HiddenInput, Dropdown, DropdownPart, Input, toSearchString, Anchor } from "./ui";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
 import { crosshairCursor, drawSelection, dropCursor, EditorView, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers, rectangularSelection, ViewUpdate } from "@codemirror/view";
 import { EditorState, Text as CMText, ChangeSet, Extension } from "@codemirror/state";
 import { unifiedMergeView } from "@codemirror/merge";
+import { Switch } from "@nextui-org/switch";
 
 declare const init: InitState;
 export const appInit = init;
@@ -52,9 +53,7 @@ export function useTestCases() {
 	const [run, setRun] = useState<RunState>(init.run);
 
 	const [state, setState] = useState({
-		cfg: init.cfg, checker: init.checker, checkers: init.checkers,
-		openTest: init.openTest, focusOpenTest: false,
-		openFile: init.openFile, testSets: init.testSets, currentTestSet: init.currentTestSet
+		...init, cases: undefined, order: undefined, run: undefined, focusOpenTest: false,
 	});
 
 	useMessage((msg) => {
@@ -73,9 +72,10 @@ export function useTestCases() {
 			}); break;
 
 			case "updateCfg": setState(s=>({...s, cfg: msg.cfg})); break;
-			case "updateChecker": setState(s=>({...s, checker: msg.checker, checkers: msg.checkers})); break;
+			case "updateCheckers": setState(s=>({...s, checkers: msg.checkers})); break;
 			case "openTest": setState(s=>({...s, openTest: msg.i, focusOpenTest: msg.focus})); break;
-			case "updateProgram": setState(s=>({...s, openFile: msg.path})); break;
+			case "updateProgram": setState(s=>({...s, openFile: msg.openFile})); break;
+			case "updateLanguagesCfg": setState(s=>({...s, languagesCfg: msg.cfg})); break;
 			case "updateRunState": setRun(msg.run); break;
 			case "updateTestSets": setState(s=>({...s, currentTestSet: msg.current, testSets: msg.sets})); break;
 		}
@@ -91,7 +91,7 @@ const mainTheme = (err: boolean) => EditorView.theme({
 	},
 	"&": {
 		"backgroundColor": "#1e1e1e",
-		"color": err ? "#f27b63" : "#9cdcfe",
+		"color": err ? "#ef4444" : "#9cdcfe",
 		"max-height": "10rem",
 		"flex-grow": "1",
 		width: "0",
@@ -138,6 +138,7 @@ export const baseExt = (err: boolean, readOnly: boolean) => [
 	rectangularSelection(),
 	crosshairCursor(),
 	highlightSelectionMatches(),
+	EditorView.contentAttributes.of({tabindex: "10"}),
 	keymap.of([
 		...defaultKeymap,
 		...searchKeymap,
@@ -179,7 +180,7 @@ export function CMReadOnly({v, err, original}: {v: string, err?: boolean, origin
 					mergeControls: false,
 					original
 				}) : []
-			]
+			],
 		});
 
 		setEditor(edit);
@@ -196,12 +197,14 @@ export function CMReadOnly({v, err, original}: {v: string, err?: boolean, origin
 
 export const TestCaseOutput = React.memo(({i, test, useCard, answer}: {i: number, test: TestCase, answer?: string, useCard?: boolean}) => {
 	const out = useTestOutput(i);
+	const [isDiff, setDiff] = useState(true);
 	if (out==null) return <></>;
 
 	const inner = <>
-		<div className="flex flex-row justify-between items-center gap-2" >
-			<Text v="md" >{answer ? "Output (diff)" : "Output"}</Text>
+		<div className="flex flex-row justify-between items-center gap-2 flex-wrap" >
+			<Text v="md" >Output</Text>
 			<div className="flex flex-row gap-1 items-center" >
+				<Switch isSelected={isDiff} onValueChange={setDiff} className="mr-2" size="sm" >Diff</Switch>
 				{out.stdout.length>0 && <IconButton icon={<Icon icon="copy" />} onClick={()=>{
 					void window.navigator.clipboard.writeText(out.stdout);
 				}} ></IconButton>}
@@ -213,7 +216,7 @@ export const TestCaseOutput = React.memo(({i, test, useCard, answer}: {i: number
 			</div>
 		</div>
 
-		<CMReadOnly v={out.stdout} original={answer && test.lastRun ? answer : undefined} />
+		<CMReadOnly v={out.stdout} original={answer && test.lastRun && isDiff ? answer : undefined} />
 
 		{out.stderr.length>0 && <>
 			<div className="flex flex-row justify-between" >
@@ -354,6 +357,8 @@ export const TestSetStatus = React.memo(({testSets, currentTestSet}: {
 	});
 
 	const cur = testSets[currentTestSet];
+	const nxt = cur.next!=undefined && cur.next in testSets ? cur.next : null;
+
 	return <Card className="flex flex-col sm:flex-row sm:gap-6 flex-wrap items-stretch md:items-center" >
 		<div className="flex flex-col gap-1 items-center" >
 			<div className="flex flex-row gap-2 items-center w-full justify-center px-2" >
@@ -365,7 +370,9 @@ export const TestSetStatus = React.memo(({testSets, currentTestSet}: {
 					onChange={(e)=>send({type: "renameTestSet", name: e.target.value})} />}
 			</div>
 			
-			{cur.group && <Text v="dim" > {cur.group} </Text>}
+			{cur.group && (cur.problemLink
+				? <Anchor onClick={()=>send({type:"openTestSetUrl", i: currentTestSet})} >{cur.group}</Anchor>
+				: <Text v="dim" >{cur.group}</Text>)}
 
 			<div className="flex flex-row gap-2 flex-wrap justify-center w-full mt-1" >
 				<Button icon={<Icon icon="trash" />}
@@ -375,7 +382,9 @@ export const TestSetStatus = React.memo(({testSets, currentTestSet}: {
 				<Dropdown trigger={
 					<Button icon={<Icon icon="arrow-swap" />} >Switch</Button>
 				} parts={[
-					{type: "txt", txt: <Input placeholder="Search..." value={search} onChange={(ev) => {
+					{type: "txt", txt: <Input placeholder="Search..."
+						className="rounded-b-none rounded-t-md"
+						value={search} onChange={(ev) => {
 							setSearch(ev.target.value)
 						}} />, key: "search" },
 					...sets,
@@ -388,6 +397,10 @@ export const TestSetStatus = React.memo(({testSets, currentTestSet}: {
 						}, key: "add"
 					}
 				]} />
+
+				{nxt!=null && <Button icon={<Icon icon="arrow-right" />}
+					onClick={()=>send({type:"switchTestSet", i: nxt})}
+					className="bg-amber-900" >Next</Button>}
 			</div>
 		</div>
 	</Card>;
@@ -397,18 +410,22 @@ export function SetProgram({tc}: {tc: ReturnType<typeof useTestCases>}) {
 	return <Card className="flex flex-col sm:flex-row sm:gap-6 flex-wrap items-center" >
 		<div className="flex flex-row gap-2 items-center justify-center" >
 			<Text v="bold" >Active program:</Text>
-			{tc.openFile!=null ? <FileName path={tc.openFile} /> : <Text className="text-red-400" >none set</Text>}
+			{tc.openFile!=null ? <FileName path={tc.openFile.path} /> : <Text className="text-red-400" >none set</Text>}
 		</div>
-		<Button className="min-w-40" onClick={()=>{
-			send({type:"setProgram", clear: tc.openFile!=null});
-		}} >{tc.openFile==null ? "Choose program" : "Clear"}</Button>
+		<div className="flex flex-row gap-2 items-center justify-center" >
+			<Button className="min-w-40" onClick={()=>{
+				send({type:"setProgram", cmd:tc.openFile==null ? "open" : "clear"});
+			}} >{tc.openFile==null ? "Choose program" : "Clear"}</Button>
+			{tc.openFile!=null && tc.openFile.type=="last" &&
+				<IconButton icon={<Icon icon="pinned" />} onClick={()=>send({type:"setProgram", cmd:"setLast"})} />}
+		</div>
 	</Card>;
 }
 
-export function TestErr({x,pre,noFile}: {x: Pick<TestCase,"err">,pre?:string,noFile?:boolean}) {
+export function TestErr({x,pre,noFile,className}: {x: Pick<TestCase,"err">,pre?:string,noFile?:boolean,className?:string}) {
 	const e = testErr(x);
 
-	return e && <Alert bad title={e.title} txt={<>
+	return e && <Alert className={className} bad title={e.title} txt={<>
 		{pre && <Text v="dim" >({pre}) </Text>}
 		{e.msg}
 		<br/>

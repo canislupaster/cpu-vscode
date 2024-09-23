@@ -4,11 +4,10 @@ import tseslint from "typescript-eslint";
 import pluginReact from "eslint-plugin-react";
 
 export default [
-  {},
   {languageOptions: { globals: {...globals.browser, ...globals.node} }},
   pluginJs.configs.recommended,
-  tseslint.config({
-    files: ["src/**.ts,tsx}"],
+  ...tseslint.config({
+    files: ["src/**.{ts,tsx}"],
     extends: [...tseslint.configs.recommendedTypeChecked],
     rules: {
       "@typescript-eslint/require-await": "off"

@@ -1,12 +1,9 @@
 import { extname, resolve } from "path";
-import { ExtensionContext, LogOutputChannel, Uri, WebviewPanel, window, workspace, EventEmitter, ViewColumn, commands, OpenDialogOptions } from "vscode";
-import { InitState, MessageFromExt, MessageToExt, TestSetMeta, TestSets } from "./shared";
+import { ExtensionContext, LogOutputChannel, Uri, WebviewPanel, window, workspace, EventEmitter, ViewColumn, commands, OpenDialogOptions, env } from "vscode";
+import { InitState, MessageFromExt, MessageToExt, OpenFile, TestSetMeta, TestSets } from "./shared";
 import { CBError, TestCases } from "./testcases";
 import { CPUWebviewProvider } from "./util";
 import { Companion } from "./companion";
-import { allExts } from "./languages";
-
-const codeFileFilter: OpenDialogOptions["filters"] = { "Source file": allExts };
 
 type AllTestSets = {
 	nextId: number,
@@ -20,6 +17,7 @@ export default class App {
 	private toDispose: {dispose: ()=>void}[] = [];
 	cases: TestCases;
 	ts: AllTestSets;
+	deleted: Record<number,boolean> = {};
 	private openTestEditor?: WebviewPanel;
 	private commandHandler: {[k in Command]: ()=>Promise<void>};
 	private reducers: {[k in MessageToExt["type"]]: (msg: Omit<Extract<MessageToExt, {type: k}>,"type">)=>Promise<void>};
@@ -28,19 +26,21 @@ export default class App {
 
 	//may not actually exist, used for initializing new testeditor to selected TC
 	openTest?: number;
-	openFile: {type:"last"|"file", path:string}|null=null;
+	openFile: OpenFile=null;
 	companion: Companion;
+
+	codeFileFilter(): OpenDialogOptions["filters"] {
+		return {"Source file": this.cases.runner.languages.allExts} // 💀
+	};
 
 	getInitState = (): InitState => ({
 		cfg: this.cases.cfg,
 		cases: Object.fromEntries(Object.entries(this.cases.cases).map(([k,v])=>[k,v.tc])),
-		checker: this.cases.checker,
 		checkers: Object.keys(this.cases.checkers),
 		openTest: this.openTest, run: this.cases.run,
-		openFile: this.openFile?.path ?? null,
-		order: this.cases.order,
+		openFile: this.openFile, order: this.cases.order,
 		testSets: this.ts.sets, currentTestSet: this.ts.current,
-
+		languagesCfg: this.cases.runner.languages.getLangsCfg(),
 		buildDir: this.cases.runner.getBuildDir(), testSetDir: this.cases.getTestsetDir()
 	});
 
@@ -73,7 +73,7 @@ export default class App {
 	async chooseSourceFile(name: string) {
 		const u = await window.showOpenDialog({
 			canSelectFiles: true,
-			filters: codeFileFilter,
+			filters: this.codeFileFilter(),
 			title: `Choose ${name}`, openLabel: `Set ${name}`
 		});
 
@@ -91,9 +91,9 @@ export default class App {
 		if (this.openFile?.type!="file" && e?.document.uri.scheme=="file") {
 			const ext = extname(e.document.uri.fsPath);
 
-			if (allExts.some(x=>ext.endsWith(x))) {
+			if (this.cases.runner.languages.allExts.some(x=>ext.endsWith(x))) {
 				this.openFile={type:"last",path:resolve(e.document.fileName)};
-				this.send({type:"updateProgram", path:this.openFile.path});
+				this.send({type:"updateProgram", openFile: this.openFile});
 			}
 		}
 	}
@@ -101,8 +101,9 @@ export default class App {
 	needsReload: boolean=false;
 
 	async deleteTestSet(i: number) {
-		delete this.ts.sets[i];
 		await this.cases.deleteTestSet(i);
+		delete this.ts.sets[i];
+		this.deleted[i]=true;
 
 		if (this.ts.current==i) {
 			const rest = Object.keys(this.ts.sets).map(Number);
@@ -117,17 +118,19 @@ export default class App {
 		}
 	}
 
-	async setProgram(clear: boolean) {
-		if (clear) {
+	async setProgram(cmd: Extract<MessageToExt,{type:"setProgram"}>["cmd"]) {
+		if (cmd=="clear") {
 			this.openFile=null;
-		} else {
+		} else if (cmd=="open") {
 			const u = await this.chooseSourceFile("program");
 			if (u==null) return;
 
 			this.openFile={type: "file", path: u};
+		} else if (cmd=="setLast" && this.openFile!=null) {
+			this.openFile.type="file";
 		}
 
-		this.send({type:"updateProgram", path: this.openFile?.path ?? null});
+		this.send({type:"updateProgram", openFile: this.openFile});
 	}
 
 	async pickTest() {
@@ -147,7 +150,7 @@ export default class App {
 	async handleRunDbgCmd(dbg: boolean) {
 		if (this.openTest==undefined) this.openTest=await this.pickTest();
 		if (this.openTest==undefined) return;
-		await this.reducers.runTestCase({i: this.openTest, dbg, stress: "none"});
+		await this.reducers.runTestCase({i: this.openTest, dbg, runType: "normal"});
 	};
 
 	lastFocus=Date.now();
@@ -163,6 +166,8 @@ export default class App {
 			if (!state.focused) return;
 			const sets = ctx.globalState.get<AllTestSets>("testsets");
 			if (!sets) return;
+			for (const x in this.deleted)
+				delete sets.sets[x];
 
 			(async ()=>{
 				const newCurrent: TestSetMeta|undefined = sets.sets[this.ts.current];
@@ -202,16 +207,27 @@ export default class App {
 
 		this.companion = new Companion(log);
 		this.companion.start().catch((e)=>this.handleErr(e));
-		this.toDispose.push(this.companion, this.companion.event((task) => (async()=>{
-			this.log.info("Received task from companion", task);
-			this.ts.sets[this.ts.nextId] = {name: task.name, group: task.group};
-			await this.cases.makeTestSetData(this.ts.nextId, task.tests);
+		this.toDispose.push(this.companion, this.companion.event((tasks) => (async()=>{
+			this.log.info("Received tasks from companion", tasks);
 
-			if (task.batch.size==1) this.ts.current=this.ts.nextId;
-			this.ts.nextId++;
+			let id = this.ts.nextId;
+			this.ts.nextId+=tasks.length;
+
+			for (const task of tasks) {
+				this.ts.sets[id] = {
+					name: task.name, group: task.group,
+					mod: Date.now(), problemLink: task.url,
+					next: task==tasks[tasks.length-1] ? undefined : id+1
+				};
+
+				await this.cases.makeTestSetData(id, task.tests);
+
+				if (tasks.length==1) this.ts.current=id;
+				id++;
+			}
+
 			await this.upTestSet();
-
-			if (task.batch.size==1) await this.cases.loadTestSet(this.ts.nextId-1, true);
+			if (tasks.length==1) await this.cases.loadTestSet(id-1, true);
 		})().catch((e)=>this.handleErr(e))));
 
 		this.toDispose.push(window.onDidChangeActiveTextEditor(()=>this.checkActive()));
@@ -222,7 +238,7 @@ export default class App {
 				&& this.openFile.path==resolve(e.fileName)) {
 
 				this.openFile=null;
-				this.send({type:"updateProgram", path:null});
+				this.send({type:"updateProgram", openFile:null});
 			}
 		}));
 
@@ -272,7 +288,7 @@ export default class App {
 			runAll: async ()=>{
 				const is = Object.keys(this.cases.cases).map(Number);
 				if (is.length==0) throw new Error("No test cases to run");
-				if (this.openFile==null) await this.setProgram(false);
+				if (this.openFile==null) await this.setProgram("open");
 				if (this.openFile==null) return;
 
 				await this.cases.runMany(is, this.openFile.path);
@@ -286,15 +302,17 @@ export default class App {
 					throw new Error("Can't input; program is not running");
 				this.cases.inputs[this.cases.run.runningTest].fire(inp);
 			},
-			runTestCase: async ({i, dbg, stress})=>{
-				if (this.openFile==null) await this.setProgram(false);
+			runTestCase: async ({i, dbg, runType})=>{
+				if (this.openFile==null) await this.setProgram("open");
 				if (this.openFile==null) return;
+
+				await workspace.save(Uri.file(this.openFile.path));
 
 				this.openTest=i;
 				this.send({type: "openTest", i, focus: false});
-				await this.cases.runTest(i, dbg, this.openFile.path, stress);
+				await this.cases.runTest(i, dbg, this.openFile.path, runType);
 			},
-			setProgram: async ({clear})=>{ await this.setProgram(clear); },
+			setProgram: async ({cmd})=>{ await this.setProgram(cmd); },
 			setTestName: async ({i,name})=>{
 				this.cases.cases[i].tc.name=name;
 				this.cases.upTestCase(i);
@@ -303,16 +321,26 @@ export default class App {
 				if (i!=undefined) this.cases.cases[i].cancel?.cancel();
 				else this.cases.runAllCancel.cancel?.cancel();
 			},
+			setInteractor: async ({clear}) => {
+				if (clear) {
+					this.cases.cfg.interactor=null;
+				} else {
+					const u = await this.chooseSourceFile("interactor");
+					if (u!=null) this.cases.cfg.interactor=u;
+				}
+
+				this.cases.upCfg();
+			},
 			setChecker: async ({checker})=>{
 				if (checker!=null) {
 					if (!(checker in this.cases.checkers)) throw new Error("Checker not found");
-					this.cases.checker={type: "default", name: checker};
+					this.cases.cfg.checker={type: "default", name: checker};
 				} else {
 					const u = await this.chooseSourceFile("checker");
-					if (u!=null) this.cases.checker = {type: "file", path: u};
+					if (u!=null) this.cases.cfg.checker = {type: "file", path: u};
 				}
 
-				this.cases.upChecker();
+				this.cases.upCfg();
 			},
 			setCfg: async ({cfg})=>{
 				this.cases.cfg=cfg;
@@ -380,6 +408,13 @@ export default class App {
 			},
 			clearCompileCache: async () => {
 				await this.cases.runner.clearCompileCache();
+			},
+			setLanguageCfg: async ({language, cfg}) => {
+				await this.cases.runner.languages.updateLangCfg(language, cfg);
+				this.send({type: "updateLanguagesCfg", cfg: this.cases.runner.languages.getLangsCfg()});
+			},
+			openTestSetUrl: async ({i}) => {
+				env.openExternal(Uri.parse(this.ts.sets[i].problemLink!));
 			}
 		};
 	}

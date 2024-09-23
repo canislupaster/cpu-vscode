@@ -1,10 +1,10 @@
 import { CancellationTokenSource } from "vscode-languageclient";
-import { badVerdicts, Checker, CompileError, defaultRunCfg, MessageFromExt, RunCfg, RunError, RunState, Stress, TestCase, TestOut, TestResult } from "./shared";
-import { ExtensionContext, window, LogOutputChannel, EventEmitter, OpenDialogOptions, Disposable, CancellationToken, CancellationError, ProgressLocation } from "vscode";
-import { Runner, Test } from "./runner";
-import { cancelPromise, cfg, exists } from "./util";
+import { badVerdicts, CompileError, defaultRunCfg, MessageFromExt, RunCfg, RunError, RunState, RunType, Stress, TestCase, TestOut, TestResult } from "./shared";
+import { ExtensionContext, window, LogOutputChannel, EventEmitter, OpenDialogOptions, Disposable, CancellationToken, CancellationError, ProgressLocation, commands, workspace } from "vscode";
+import { CompileResult, Runner, Test } from "./runner";
+import { cancelPromise, exists } from "./util";
 import { basename, extname, join, resolve } from "node:path";
-import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { createReadStream } from "node:fs";
 
 const inNames = new Set([".in"]), ansNames = new Set([".out", ".ans"]);
@@ -34,12 +34,13 @@ type TestSetData = {
 	cases: Record<number, Omit<TestCase,"cancellable">>,
 	runAll: Omit<RunState["runAll"],"cancellable">,
 	order: number[],
+	runCfg: RunCfg|null,
 	nextId: number
 };
 
 const defaultRunAll = {cancellable: null, lastRun: null, err: null};
 
-type TestFileType = "output"|"stressIn"|"stressAns"|"stressOut";
+type TestFileType = "output"|"stress"|"fileIO";
 
 type Stats = Pick<TestResult,"wallTime"|"cpuTime"|"mem">;
 
@@ -60,29 +61,28 @@ export class TestCases {
 	};
 
 	checkers: Record<string,string> = {};
-	checker: Checker|null=null;
 	cfg: RunCfg = defaultRunCfg;
 
 	fileToCase: Map<string, {case: number, which: "inFile"|"ansFile"}> = new Map();
 
 	maxOutputSize=1024*35;
 
+	upCheckers() {
+		this.send({type:"updateCheckers", checkers: Object.keys(this.checkers)});
+		this.saveSoon();
+	}
+
 	upCfg() {
 		this.send({type: "updateCfg", cfg: this.cfg});
 		this.ctx.workspaceState.update("runcfg", this.cfg);
+		this.saveSoon();
 	}
-
-	upChecker() {this.send({
-		type: "updateChecker",
-		checker: this.checker,
-		checkers: Object.keys(this.checkers)
-	});}
 
 	toTestSet=():TestSetData=>({
 		cases: Object.fromEntries(Object.entries(this.cases).map(([k,v])=>[k,v.tc])),
 		runAll: this.run.runAll,
 		order: this.order,
-		nextId: this.id
+		runCfg: this.cfg, nextId: this.id
 	});
 
 	// ok there are so many issues with the IPC thing that i don't want to deal with
@@ -122,6 +122,8 @@ export class TestCases {
 		this.send({type: "reorderTests", order: []});
 
 		this.setId = setId;
+		if (tests?.runCfg) this.cfg=tests.runCfg;
+		else this.cfg.interactor=this.cfg.fileIO=null; //clear things which probably shouldn't be persisted across test sets
 		this.order = tests?.order ?? [];
 		this.id = tests?.nextId ?? 0;
 		this.run.runAll={...tests?.runAll ?? {lastRun: null, err: null}, cancellable: null};
@@ -130,6 +132,7 @@ export class TestCases {
 		this.upTestCases([...new Set([...Object.keys(this.cases).map(Number),...is])], false);
 		this.upOrder();
 		this.upRun();
+		this.upCfg();
 	}
 
 	timeout?: NodeJS.Timeout;
@@ -140,38 +143,37 @@ export class TestCases {
 		}
 
 		this.log.info("Saving tests...");
-		await this.onSaveTests();
-		await this.ctx.globalState.update(`testset${this.setId}`, this.toTestSet());
-	}
 
-	upTests(save: boolean=true) {
 		this.fileToCase = new Map(Object.entries(this.cases).flatMap(([id,v])=>[
 			[v.tc.inFile, {case: Number(id), which: "inFile"}],
 			[v.tc.ansFile, {case: Number(id), which: "ansFile"}],
 		]).filter(([a])=>a!=undefined) as [string, {case: number, which: "inFile"|"ansFile"}][])
 
-		if (save) {
-			if (this.timeout) clearTimeout(this.timeout);
-			this.timeout = setTimeout(()=>void this.save(), 5000);
-		}
+		await this.onSaveTests();
+		await this.ctx.globalState.update(`testset${this.setId}`, this.toTestSet());
+	}
+
+	saveSoon() {
+		if (this.timeout) clearTimeout(this.timeout);
+		this.timeout = setTimeout(()=>void this.save(), 5000);
 	}
 
 	upOrder() {
 		this.send({type: "reorderTests", order: this.order});
-		this.upTests();
+		this.saveSoon();
 	}
 
 	upTestCases(is:number[], save: boolean) {
 		this.send({type: "updateTestCases", testCasesUpdated:
 			Object.fromEntries(is.map((v): [number, TestCase|null]=>[v, this.cases[v]?.tc ?? null])) });
-		this.upTests(save);
+		if (save) this.saveSoon();
 	}
 
 	upTestCase(i:number) { this.upTestCases([i],true); }
 
 	upRun() {
 		this.send({type: "updateRunState", run: this.run});
-		this.upTests();
+		this.saveSoon();
 	}
 
 	//return wrapped promise bc otherwise eslint is annoyed
@@ -247,7 +249,7 @@ export class TestCases {
 	}
 
 	getTestsetDir() {
-		let testDir = cfg().get<string>("testDir") ?? null;
+		let testDir = workspace.getConfiguration("cpu.testDir").get<string>("") ?? null;
 		if (testDir && testDir.length==0) testDir=null;
 		if (this.ctx.storageUri) testDir=this.ctx.storageUri?.fsPath;
 		else if (this.ctx.globalStorageUri) testDir=this.ctx.globalStorageUri?.fsPath;
@@ -278,7 +280,7 @@ export class TestCases {
 	async makeTestSetData(setId: number, tests: {input:string,output:string}[]) {
 		const data: TestSetData = {
 			nextId: 0, order: tests.map((_,i)=>i),
-			cases: {}, runAll: defaultRunAll
+			runCfg: null, cases: {}, runAll: defaultRunAll
 		};
 
 		for (const {input,output} of tests) {
@@ -294,7 +296,8 @@ export class TestCases {
 
 	private makeTestCase=(name: string, tmp: boolean, inFile?: string, ansFile?: string, stress?: Stress): TestCase=>({
 		inFile, ansFile, name, stress,
-		tmpIn: tmp, tmpAns: tmp, cancellable: null, err: null, lastRun: null
+		tmpIn: tmp, tmpAns: tmp,
+		cancellable: null, err: null, lastRun: null
 	});
 
 	private makeTest(tc: TestCase) {
@@ -366,8 +369,9 @@ export class TestCases {
 		});
 	}
 
-	//actually, stressin/stressout are directories (each worker gets a file)
-	testFileTypes: TestFileType[]=["output","stressIn","stressAns","stressOut"]
+	//stress and fileIO are directories (stress contains folder for each worker, fileIO contains named input/outputs which are copied from input / to output...)
+	//stress dir may contain name input/outputs
+	testFileTypes: TestFileType[]=["output","stress","fileIO"]
 	async getTestFile(i: number, f: TestFileType, doRm?: boolean) {
 		const bd = join(this.runner.getBuildDir(), `testset${this.setId}`);
 		const out = resolve(join(bd, f=="output" ? `test${i}.out` : `${f}${i}`));
@@ -394,9 +398,10 @@ export class TestCases {
 	}
 
 	//run within withTest
-	private async handleTestOutput(i: number): Promise<Pick<Test,"onOutput"|"output"|"onJudge">&{dispose: ()=>void}> {
+	private async testIO(i: number, c: TestCase): Promise<Pick<Test,"onOutput"|"output"|"onJudge"|"inFile"|"end"|"ansFile">> {
 		let tm: NodeJS.Timeout|null = null;
 		const outPath = await this.getTestFile(i,"output");
+		const fioPath = this.cfg.fileIO!=null ? await this.getTestFile(i, "fileIO") : null;
 
 		delete this.outputs[i];
 		this.send({type: "testCaseOutput", i});
@@ -411,11 +416,12 @@ export class TestCases {
 		};
 
 		return {
-			dispose: ()=>{
+			end: async ()=>{
 				if (tm) clearTimeout(tm);
-				this.send({type: "testCaseOutput", i, out: this.outputs[i]});
+				await this.setOutputFrom(i, outPath, this.outputs[i]?.judge);
 			},
-			output: outPath,
+			ansFile: c.ansFile,
+			...await this.mkFileIO(fioPath, c.inFile, outPath),
 			onJudge: (x)=>{
 				getO().judge=x;
 
@@ -423,6 +429,9 @@ export class TestCases {
 					this.send({type: "testCaseStream", which: "judge", txt: x});
 			},
 			onOutput: (x, which) => {
+				if (this.run.runningTest==i)
+					this.send({type: "testCaseStream", which, txt: x});
+
 				const o=getO();
 				if (o.stderr.length+o.stdout.length<this.maxOutputSize) {
 					const extra = x.length+o.stderr.length+o.stdout.length-this.maxOutputSize;
@@ -430,47 +439,62 @@ export class TestCases {
 						x=x.slice(0,this.maxOutputSize-o.stderr.length-o.stdout.length);
 						o.hiddenSize=extra;
 					}
-					if (which=="stderr") o.stderr+=x; else o.stdout+=x;
+
+					if (which=="stderr") o.stderr+=x;
+					else o.stdout+=x;
 				} else {
 					o.hiddenSize!+=x.length;
 				}
-
-				if (this.run.runningTest==i)
-					this.send({type: "testCaseStream", which, txt: x});
 			}
 		}
 	}
 
 	//https://stackoverflow.com/a/59722384
+	//used for stress test and after interactive tests
 	private async setOutputFrom(i: number, from: string, judge?: string) {
 		const chunks=[];
-		for await (const o of createReadStream(from, {start:0,end:this.maxOutputSize}))
-			chunks.push(o);
+		if (await exists(from)) {
+			for await (const o of createReadStream(from, {start:0,end:this.maxOutputSize}))
+				chunks.push(o);
+		}
 
-		this.outputs[i]={
+		if (chunks.length>0 || judge) this.outputs[i]={
 			...this.outputs[i] ?? {stderr: ""},
 			path: from, stdout: Buffer.concat(chunks).toString("utf-8"), judge
-		};
+		}; else {
+			delete this.outputs[i];
+		}
 
 		this.send({type: "testCaseOutput", i, out: this.outputs[i]});
 	}
 
-	private async compileProgChecker(d: (x:Disposable)=>void, path: string, stop: CancellationToken, dbg?: boolean, testlib?: boolean) {
-		if (this.checker==null) throw new RunError("No checker set", path);
+	private async compileProgChecker(d: (x:Disposable)=>void, path: string, stop: CancellationToken, dbg: "normal"|"interactor"|null, testlib?: boolean) {
+		if (this.cfg.checker==null) throw new RunError("No checker set", path);
 
 		d(window.setStatusBarMessage(`Compiling ${basename(path)}...`));
 		const prog = await this.runner.compile({
 			file: path, cached: true,
-			type: dbg ? "debug" : "fast", testlib: testlib==true, stop
+			type: dbg=="normal" ? "debug" : "fast", testlib: testlib==true, stop
 		});
 
-		const checkerFile = this.checker.type=="file" ? this.checker.path : this.checkers[this.checker.name];
+		const checkerFile = this.cfg.checker.type=="file" ? this.cfg.checker.path : this.checkers[this.cfg.checker.name];
 		d(window.setStatusBarMessage(`Compiling ${basename(checkerFile)}...`));
 		const checker = await this.runner.compile({
 			file: checkerFile, cached: true, type: "fast", testlib: true, stop
 		});
 
-		return {prog,checker};
+		let interactor: CompileResult|undefined;
+		if (this.cfg.interactor!=null) {
+			d(window.setStatusBarMessage(`Compiling interactor ${basename(this.cfg.interactor)}...`));
+
+			interactor = await this.runner.compile({
+				file: this.cfg.interactor, cached: true,
+				type: dbg=="interactor" ? "debug" : "fast",
+				testlib: true, stop
+			});
+		}
+		
+		return {prog,checker,interactor};
 	}
 
 	runCfgToTest = () => ({
@@ -489,8 +513,7 @@ export class TestCases {
 		const cancel = new CancellationTokenSource();
 
 		return this.withRunAll(async (r,d) => {
-			const compilation = await this.compileProgChecker(d,path,cancel.token);
-
+			const compilation = await this.compileProgChecker(d,path,cancel.token,null);
 			await window.withProgress({
 				cancellable: true,
 				location: ProgressLocation.Notification,
@@ -525,9 +548,9 @@ export class TestCases {
 
 						const test: Test = {
 							...this.runCfgToTest(),
-							...c, dbg: false,
+							dbg: null, name: c.name,
 							...compilation, stop: cancel.token,
-							...await this.handleTestOutput(i)
+							...await this.testIO(i,c)
 						};
 
 						const res = await this.runner.run(test);
@@ -584,15 +607,51 @@ export class TestCases {
 		});
 	}
 
-	runTest(i: number, dbg: boolean, path: string, stress: "none"|"run"|"generator") {
-		if (stress=="run" && dbg)
+	private async mkFileIO(dir: string|null, input: string|undefined, out: string) {
+		const fio = this.cfg.fileIO;
+		if (fio==null || dir==null) return {
+			inFile: input, output: out
+		};
+
+		const ret: {inFile?: string, output: string, cwd: string, noStdio: boolean} = {
+			output: join(dir, fio.output), cwd: dir, noStdio: true
+		};
+
+		await rm(ret.output, {force: true});
+		await symlink(out, ret.output, "file");
+
+		if (input!=undefined) {
+			ret.inFile=join(dir, fio.input);
+			await rm(ret.inFile, {force: true});
+			await symlink(input, ret.inFile, "file");
+		}
+	
+		return ret;
+	}
+
+	//there are some funky cases here
+	//like runtype runinteractor just lets u debug interactor
+	//and runtype generator only runs generator w/o interactor, etc
+	//and then all the stress testing gunk
+	async runTest(i: number, dbg: boolean, path: string, runType: RunType) {
+		if (runType=="stress" && dbg)
 			throw new Error("Stress tests don't support debugging");
+		if (runType=="runInteractor" && this.cfg.interactor==null)
+			throw new Error("No interactor to run");
 
 		const cancel = new CancellationTokenSource();
+		const cb = this.cases[i];
+		if (cb.cancel!=null) {
+			cb.cancel.cancel();
+			await new Promise<void>(cb.done.event);
+		}
+
+		const dbgTy = dbg ? (runType=="runInteractor" ? "interactor" : "normal") : null;
+
 		return this.withTest(i, async (c,d) => {
 			const compilation = await this.compileProgChecker(d,
-				stress=="generator" ? c.stress!.generator : path,
-				cancel.token, dbg, stress=="generator");
+				runType=="generator" ? c.stress!.generator : path,
+				cancel.token, dbgTy, runType=="generator");
 			c.lastRun=null;
 
 			const setFrom = async (which: "inFile"|"ansFile", from: string) => {
@@ -605,7 +664,7 @@ export class TestCases {
 			const genName = `${c.name} (Generator)`;
 			const bruteName = `${c.name} (Brute force)`;
 
-			if (c.stress!=undefined && stress=="run") {
+			if (c.stress!=undefined && runType=="stress") {
 				const s = c.stress;
 				s.status=null;
 
@@ -619,9 +678,7 @@ export class TestCases {
 					file: s.generator, cached: true, type: "fast", testlib: true, stop: cancel.token
 				});
 
-				const dirs = await Promise.all(([
-					"stressIn","stressOut","stressAns"
-				] as TestFileType[]).map((x)=>this.getTestFile(i,x))) as [string,string,string];
+				const dir = await this.getTestFile(i,"stress");
 
 				await window.withProgress({
 					cancellable: true,
@@ -646,13 +703,18 @@ export class TestCases {
 
 					const nworker = Math.min(20, stat.maxI);
 					await Promise.all([...(new Array(nworker) as unknown[])].map(async (_,workerI)=>{
-						const [stressIn, stressOut, stressAns] = dirs.map(x=>join(x, `worker${workerI}`));
+						const workDir = join(dir, `worker${workerI}`);
+						await mkdir(workDir, {recursive: true});
+						const [stressIn, stressOut, stressAns] = ["input","output","answer"].map(x=>join(workDir,x));
+
+						const fioDir = join(workDir,"fileIO");
+						if (this.cfg.fileIO!=null) await mkdir(fioDir, {recursive: true});
 
 						while (!cancel.token.isCancellationRequested && ci<stat.maxI) {
 							const xi=ci++;
 							const genTest: Test = {
-								name: genName, dbg, prog: gen,
-								stop: cancel.token,
+								name: genName, dbg: null,
+								prog: gen, stop: cancel.token,
 								args: this.runner.evaluateStressArgs(s.args, xi),
 								output: stressIn, eof: false
 							};
@@ -666,9 +728,9 @@ export class TestCases {
 
 							const bruteTest: Test = {
 								...this.runCfgToTest(),
-								name: bruteName, dbg, prog: brute,
-								inFile: stressIn,
-								output: stressAns,
+								interactor: compilation.interactor,
+								name: bruteName, dbg: null, prog: brute,
+								...await this.mkFileIO(fioDir, stressIn, stressAns),
 								stop: cancel.token
 							};
 							
@@ -686,9 +748,9 @@ export class TestCases {
 							let judge: string|undefined;
 							const progTest: Test = {
 								...this.runCfgToTest(),
-								...c, dbg, ...compilation,
-								stop: cancel.token,
-								inFile: stressIn, ansFile: stressAns, output: stressOut,
+								dbg: null, ...compilation,
+								name: c.name, stop: cancel.token, ansFile: stressAns,
+								...await this.mkFileIO(fioDir, stressIn, stressOut),
 								onJudge(j) { judge=j; },
 							};
 
@@ -724,18 +786,18 @@ export class TestCases {
 				const test: Test = {
 					...this.runCfgToTest(),
 					//don't use input/answer files when running generator
-					...stress=="generator" ? {name: genName} : c,
-					dbg, ...compilation,
-					onInput: this.inputs[i].event,
+					name: runType=="generator" ? genName : c.name,
+					dbg: dbgTy, ...compilation, onInput: this.inputs[i].event,
 					stop: cancel.token,
-					args: stress=="generator"
+					args: runType=="generator"
 						? this.runner.evaluateStressArgs(c.stress!.args, Math.floor(Math.random()*c.stress!.maxI))
 						: undefined,
-					...await this.handleTestOutput(i)
+					...await this.testIO(i,c)
 				};
 
 				d(window.setStatusBarMessage(`Running ${basename(path)} / ${test.name}`))
 
+				await commands.executeCommand("cpu.panel.focus");
 				this.run.runningTest=i;
 				this.upRun();
 				d({dispose: ()=>{
@@ -745,7 +807,8 @@ export class TestCases {
 				}});
 
 				const res = await this.runner.run(test);
-				if (stress=="generator") c.lastRun=null;
+				//no verdict for generator
+				if (runType=="generator") c.lastRun=null;
 				else if (res) c.lastRun=res;
 			}
 		}, {cancel});
@@ -846,19 +909,21 @@ export class TestCases {
 
 		if (!checkers.includes("wcmp.cpp"))
 			throw new Error("wcmp not found");
-		this.checker={type: "default", name: "wcmp.cpp"};
+		this.cfg.checker={type: "default", name: "wcmp.cpp"};
 
 		this.checkers = Object.fromEntries(checkers.map(c=>
 			[c,join(this.ctx.extensionPath, "testlib/checkers", c)]
 		));
 
-		this.upChecker();
+		this.upCfg();
 	}
 
 	//not 100% perfect, since cancellation is async
 	dispose() {
+		this.runner.dispose();
 		this.runAllCancel.cancel?.cancel();
 		for (const c of Object.values(this.cases))
 			c?.cancel?.cancel();
+		void this.save();
 	}
 }

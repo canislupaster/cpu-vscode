@@ -3,7 +3,7 @@
   "publisher": "thomasqm",
   "displayName": "Competitive Programmers Union",
   "description": "A smoother competitive programming experience: test cases, debugging, stress testing and more",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "icon": "resources/icon.png",
   "author": "Thomas Marlowe",
   "repository": {
@@ -16,7 +16,9 @@
   "categories": [
     "Other"
   ],
-  "extensionKind": [ "workspace" ],
+  "extensionKind": [
+    "workspace"
+  ],
   "activationEvents": [],
   "main": "./main.js",
   "contributes": {
@@ -52,7 +54,12 @@
         },
         "cpu.runtime": {
           "type": "object",
-          "additionalProperties": ["c++","java","python","rust"],
+          "additionalProperties": [
+            "c++",
+            "java",
+            "python",
+            "rust"
+          ],
           "description": "Per-language runtime paths",
           "default": {}
         },
@@ -60,14 +67,25 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "c++": {"type": "string"},
-            "java": {"type": "string"},
-            "python": {"type": "string"},
-            "rust": {"type": "string"}
+            "c++": {
+              "type": "string"
+            },
+            "java": {
+              "type": "string"
+            },
+            "python": {
+              "type": "string"
+            },
+            "rust": {
+              "type": "string"
+            }
           },
           "description": "Per-language compiler paths",
           "default": {
-            "c++": "", "java": "", "python": "", "rust": ""
+            "c++": "",
+            "java": "",
+            "python": "",
+            "rust": ""
           }
         },
         "cpu.compileArgs.fast": {
@@ -75,13 +93,22 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "c++": {"type": "string"},
-            "java": {"type": "string"},
-            "python": {"type": "string"},
-            "rust": {"type": "string"}
+            "c++": {
+              "type": "string"
+            },
+            "java": {
+              "type": "string"
+            },
+            "python": {
+              "type": "string"
+            },
+            "rust": {
+              "type": "string"
+            }
           },
           "default": {
-            "java": "", "python": "",
+            "java": "",
+            "python": "",
             "c++": "-O2",
             "rust": "-C opt-level=2"
           }
@@ -91,13 +118,22 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "c++": {"type": "string"},
-            "java": {"type": "string"},
-            "python": {"type": "string"},
-            "rust": {"type": "string"}
+            "c++": {
+              "type": "string"
+            },
+            "java": {
+              "type": "string"
+            },
+            "python": {
+              "type": "string"
+            },
+            "rust": {
+              "type": "string"
+            }
           },
           "default": {
-            "java": "", "python": "",
+            "java": "",
+            "python": "",
             "c++": "-O0 -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC",
             "rust": "-g -C debug-assertions=on"
           }
@@ -107,13 +143,23 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "c++": {"type": "string"},
-            "java": {"type": "string"},
-            "python": {"type": "string"},
-            "rust": {"type": "string"}
+            "c++": {
+              "type": "string"
+            },
+            "java": {
+              "type": "string"
+            },
+            "python": {
+              "type": "string"
+            },
+            "rust": {
+              "type": "string"
+            }
           },
           "default": {
-            "java": "", "python": "", "rust": "",
+            "java": "",
+            "python": "",
+            "rust": "",
             "c++": "-Wall -std=c++20 -g"
           }
         }
@@ -172,7 +218,7 @@
     "typescript": "^5.5.4",
     "typescript-eslint": "^8.5.0"
   },
-  "extensionDependencies": [
+  "extensionPack": [
     "vadimcn.vscode-lldb",
     "llvm-vs-code-extensions.vscode-clangd"
   ],
@@ -191,6 +237,7 @@
     "@nextui-org/popover": "^2.1.27",
     "@nextui-org/progress": "^2.0.33",
     "@nextui-org/spinner": "^2.0.33",
+    "@nextui-org/switch": "^2.0.34",
     "@nextui-org/system": "^2.2.5",
     "@nextui-org/theme": "^2.2.9",
     "@nextui-org/tooltip": "^2.0.39",
