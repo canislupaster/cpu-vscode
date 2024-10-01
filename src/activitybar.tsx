@@ -3,7 +3,7 @@ import { Anchor, AppTooltip, Button, Card, Divider, DragHandle, dragTCs, HiddenI
 import { Spinner } from "@nextui-org/spinner";
 import { useMemo, useState } from "react";
 import React from "react";
-import { TestCaseFile, TestCaseOutput, useTestSource, useTestCases, SetProgram, RunStats, TestErr, TestSetStatus } from "./testcase";
+import { TestCaseFile, TestCaseOutput, useTestSource, useTestCases, SetProgram, RunStats, TestErr, TestSetStatus, DiffContextProvider } from "./testcase";
 import { Collapse } from "react-collapse";
 import { Progress } from "@nextui-org/progress";
 
@@ -132,7 +132,8 @@ const RunAllStatus = React.memo(({runAll}: {runAll: RunState["runAll"]})=>{
 
 		<div className="flex flex-row items-start gap-2 justify-between" >
 			<div className="flex flex-col gap-1 flex-1 mt-1" >
-				<Progress size="md" isIndeterminate={lr.progress[0]==0} value={lr.progress[0]} maxValue={lr.progress[1]} color="secondary" ></Progress>
+				<Progress size="md" isIndeterminate={lr.progress[0]==0 && runAll.cancellable!=null}
+					value={lr.progress[0]} maxValue={lr.progress[1]} color="secondary" ></Progress>
 
 				<RunStats x={lr} />
 			</div>
@@ -183,10 +184,12 @@ function App() {
 		</div>
 
 		<div ref={drag} className="flex flex-col gap-2" >
-			{eachSetOpen.map(([k,open,setOpen])=>
-				<SmallTestCase test={tc.cases[k]} i={Number(k)} key={k} open={open}
-					setOpen={setOpen} interactive={tc.cfg.interactor!=null} />
-			)}
+			<DiffContextProvider>
+				{eachSetOpen.map(([k,open,setOpen])=>
+					<SmallTestCase test={tc.cases[k]} i={Number(k)} key={k} open={open}
+						setOpen={setOpen} interactive={tc.cfg.interactor!=null} />
+				)}
+			</DiffContextProvider>
 		</div>
 		
 		<Button onClick={()=>send({type:"createTestCase"})} icon={<Icon icon="add" />} >Add test case</Button>

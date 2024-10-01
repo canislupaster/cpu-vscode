@@ -86,6 +86,12 @@ export default class App {
 
 	send(x:MessageFromExt) { this.onMessageSource.fire(x); };
 
+	updateProgram() {
+		if (this.openFile!=null)
+			this.cases.runner.loadFile(this.openFile.path).catch(e=>this.handleErr(e));
+		this.send({type:"updateProgram", openFile: this.openFile});
+	}
+
 	checkActive() {
 		const e = window.activeTextEditor;
 		if (this.openFile?.type!="file" && e?.document.uri.scheme=="file") {
@@ -93,7 +99,7 @@ export default class App {
 
 			if (this.cases.runner.languages.allExts.some(x=>ext.endsWith(x))) {
 				this.openFile={type:"last",path:resolve(e.document.fileName)};
-				this.send({type:"updateProgram", openFile: this.openFile});
+				this.updateProgram();
 			}
 		}
 	}
@@ -130,7 +136,7 @@ export default class App {
 			this.openFile.type="file";
 		}
 
-		this.send({type:"updateProgram", openFile: this.openFile});
+		this.updateProgram();
 	}
 
 	async pickTest() {
@@ -192,6 +198,9 @@ export default class App {
 		}));
 
 		this.cases = new TestCases(ctx, log, (x)=>this.send(x), this.ts.current, ()=>this.upTestSet());
+		this.cases.runner.languages.onCfgChange(() => {
+			this.send({type: "updateLanguagesCfg", cfg: this.cases.runner.languages.getLangsCfg()});
+		});
 
 		this.toDispose.push(
 			this.testEditor, this.cases,
@@ -237,8 +246,7 @@ export default class App {
 			if (this.openFile?.type=="last" && e.uri.scheme=="file"
 				&& this.openFile.path==resolve(e.fileName)) {
 
-				this.openFile=null;
-				this.send({type:"updateProgram", openFile:null});
+				this.updateProgram();
 			}
 		}));
 
@@ -411,7 +419,6 @@ export default class App {
 			},
 			setLanguageCfg: async ({language, cfg}) => {
 				await this.cases.runner.languages.updateLangCfg(language, cfg);
-				this.send({type: "updateLanguagesCfg", cfg: this.cases.runner.languages.getLangsCfg()});
 			},
 			openTestSetUrl: async ({i}) => {
 				env.openExternal(Uri.parse(this.ts.sets[i].problemLink!));

@@ -129,10 +129,14 @@ export class TestCases {
 		this.run.runAll={...tests?.runAll ?? {lastRun: null, err: null}, cancellable: null};
 		this.outputs={};
 
-		this.upTestCases([...new Set([...Object.keys(this.cases).map(Number),...is])], false);
+		this.disableSave=true;
+
+		this.upTestCase(...new Set([...Object.keys(this.cases).map(Number),...is]));
 		this.upOrder();
 		this.upRun();
 		this.upCfg();
+
+		this.disableSave=false;
 	}
 
 	timeout?: NodeJS.Timeout;
@@ -153,8 +157,10 @@ export class TestCases {
 		await this.ctx.globalState.update(`testset${this.setId}`, this.toTestSet());
 	}
 
+	disableSave: boolean=false;
 	saveSoon() {
 		if (this.timeout) clearTimeout(this.timeout);
+		if (this.disableSave) return;
 		this.timeout = setTimeout(()=>void this.save(), 5000);
 	}
 
@@ -163,13 +169,11 @@ export class TestCases {
 		this.saveSoon();
 	}
 
-	upTestCases(is:number[], save: boolean) {
+	upTestCase(...is:number[]) {
 		this.send({type: "updateTestCases", testCasesUpdated:
 			Object.fromEntries(is.map((v): [number, TestCase|null]=>[v, this.cases[v]?.tc ?? null])) });
-		if (save) this.saveSoon();
+		this.saveSoon();
 	}
-
-	upTestCase(i:number) { this.upTestCases([i],true); }
 
 	upRun() {
 		this.send({type: "updateRunState", run: this.run});
@@ -897,7 +901,7 @@ export class TestCases {
 			}))
 			.map((([k,v])=>this.makeTest(this.makeTestCase(k, false, v.in, v.out))));
 
-		this.upTestCases(ids, true);
+		this.upTestCase(...ids);
 		this.upOrder();
 	}
 

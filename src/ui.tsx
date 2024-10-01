@@ -391,14 +391,25 @@ export function dragTCs(init: number[], cfg?: ParentConfig<number>): [number[], 
 	return [vs,parent,dragging];
 }
 
+type UIState = { diff: boolean };
+const defaultUIState: UIState = {diff: false};
+
 type VSCodeAPI = {
-	postMessage: (msg: MessageToExt) => void
+	postMessage: (msg: MessageToExt) => void,
+	getState: ()=>UIState|undefined,
+	setState: (x: UIState)=>void
 };
 
 declare const acquireVsCodeApi: ()=>VSCodeAPI;
 const vscode = acquireVsCodeApi();
 
 export const send = vscode.postMessage;
+export let uiState = vscode.getState() ?? defaultUIState;
+
+export function setUiState(update: Partial<UIState>) {
+	uiState={...uiState, ...update};
+	vscode.setState(uiState);
+}
 
 export function render(component: React.FunctionComponent) {
 	window.addEventListener("load", ()=>

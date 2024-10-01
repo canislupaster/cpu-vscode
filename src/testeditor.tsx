@@ -4,7 +4,7 @@ import { Alert, Anchor, AppModal, Button, Card, Divider, DragHandle, dragTCs, ex
 import { Spinner } from "@nextui-org/spinner";
 import { Collapse } from "react-collapse";
 import React from "react";
-import { TestCaseFile, TestCaseOutput, useTestSource, useTestCases, RunStats, TestErr, appInit } from "./testcase";
+import { TestCaseFile, TestCaseOutput, useTestSource, useTestCases, RunStats, TestErr, appInit, DiffContextProvider } from "./testcase";
 import { Checkbox } from "@nextui-org/checkbox";
 import { ModalBody, ModalContent, ModalFooter, ModalHeader, useDisclosure } from "@nextui-org/modal";
 import { LanguageConfig } from "./languages";
@@ -303,7 +303,7 @@ function App() {
 					onChange={(v) => setLanguage((v as {value:string}).value)} />
 			</div>
 
-			{language!=null && <LanguageCfg language={language} cfg={tc.languagesCfg[language]} />}
+			{language!=null && <LanguageCfg language={language} cfg={tc.languagesCfg[language]} key={language} />}
 			
 			<div className="flex flex-row gap-2 p-2 justify-center w-full flex-wrap" >
 				<Button icon={<Icon icon="new-file" />} onClick={()=>send({type: "importTests"})} >Import test cases</Button>
@@ -316,12 +316,14 @@ function App() {
 		</div>
 
 		<div className="flex flex-col gap-2" ref={drag} >
-			{order.map(k=>{
-				return <div key={k} >
-					<Divider/>
-					<TestCase open={k==tc.openTest} focus={tc.focusOpenTest && k==tc.openTest} test={tc.cases[k]} i={k} />
-				</div>;
-			})}
+			<DiffContextProvider>
+				{order.map(k=>{
+					return <div key={k} >
+						<Divider/>
+						<TestCase open={k==tc.openTest} focus={tc.focusOpenTest && k==tc.openTest} test={tc.cases[k]} i={k} />
+					</div>;
+				})}
+			</DiffContextProvider>
 		</div>
 
 		<div className="flex flex-col items-center gap-2" >

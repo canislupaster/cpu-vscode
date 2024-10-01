@@ -2,9 +2,16 @@ import { execFile } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
 import { promisify } from "node:util";
-import { DebugConfiguration, Disposable, extensions, workspace, WorkspaceConfiguration } from "vscode";
+import { DebugConfiguration, Disposable, EventEmitter, extensions, workspace, WorkspaceConfiguration } from "vscode";
 import { argsToArr, portInUse, delay } from "./util";
 import { Hash } from "node:crypto";
+import { BaseLanguageClient } from "vscode-languageclient";
+
+export type LanguageLoadOpts = {
+	extPath: string,
+	source: string, cwd: string,
+	testlib?: boolean, type?: "fast"|"debug"
+};
 
 export type LanguageCompileOpts = {
 	extPath: string,
@@ -38,8 +45,8 @@ export abstract class Language {
 	protected get cfg(): LanguageConfig { return this.cfgs[this.name]; }
 	constructor(protected cfgs: LanguagesConfig) {}
 
-	getArgs(ty: "fast"|"debug"): string[] {
-		return [this.cfg.commonArgs, this.cfg[`${ty}Args`]]
+	getArgs(ty: "fast"|"debug"|null): string[] {
+		return [this.cfg.commonArgs, ty==null ? null : this.cfg[`${ty}Args`]]
 			.flatMap(v=> v ? argsToArr(v) : []);
 	}
 
@@ -49,6 +56,7 @@ export abstract class Language {
 		x.update(this.cfg.compiler??"");
 	}
 
+	load?: (x: LanguageLoadOpts)=>Promise<void>;
 	compile?: (x: LanguageCompileOpts)=>Promise<string[]>;
 	run?: (x: LanguageRunOpts)=>Promise<string[]>;
 	debug?: (x: LanguageDebugOpts)=>Promise<DebugConfiguration>;
@@ -72,21 +80,58 @@ async function waitForPort(port: number) {
 	return false;
 }
 
+//https://github.com/clangd/vscode-clangd/blob/master/api/vscode-clangd.d.ts
+interface ClangdApiV1 { languageClient?: BaseLanguageClient };
+interface ClangdExtension { getApi(version: 1): ClangdApiV1; };
+
 class CPP extends Language {
 	compiler: string|null=null;
 	name="c++";
 	stopOnDebug=true;
 	exts=["cpp","cxx","cc","c++"];
 
-	compile=async ({extPath, prog, source, testlib, type}: LanguageCompileOpts): Promise<string[]> => {
+	async getCompiler() {
 		if (this.cfg.compiler!=undefined) this.compiler=this.cfg.compiler;
 		else if (this.compiler==null) {
-			if (await existsInPath("clang++")) this.compiler="clang++";
-			else if (await existsInPath("g++")) this.compiler="g++";
+			if (await existsInPath("g++")) this.compiler="g++";
+			else if (await existsInPath("clang++")) this.compiler="clang++";
 			else throw new Error("G++ or Clang not found. Try setting a compiler in settings");
 		}
 
-		return [this.compiler, source, ...testlib ? ["-isystem", join(extPath, "testlib")] : [], "-o", prog, ...this.getArgs(type)];
+		return this.compiler;
+	}
+
+	load = async ({extPath, testlib, source, type, cwd}: LanguageLoadOpts) => {
+		const args = [
+			await this.getCompiler(), source,
+			...testlib==true ? ["-isystem", join(extPath, "testlib")] : [],
+			...this.getArgs(type??null)
+		];
+
+		const clangd = extensions.getExtension<ClangdExtension>("llvm-vs-code-extensions.vscode-clangd");
+		const setting: Record<string, {workingDirectory: string, compilationCommand: string[]}> = {
+			[source]: {compilationCommand: args, workingDirectory: cwd}
+		};
+
+		if (clangd!=undefined) {
+			const lsp = (await clangd.activate()).getApi(1).languageClient;
+			if (lsp!=undefined && !lsp.isRunning()) await lsp.start();
+
+			if (lsp?.isRunning())
+				//can't use DidChangeConfigurationNotification.type for arcane reasons
+				//you don't want to know
+				await lsp.sendNotification("workspace/didChangeConfiguration", {
+					settings: { compilationDatabaseChanges: setting }
+				});
+		}
+	};
+
+	compile=async ({extPath, prog, source, testlib, type}: LanguageCompileOpts): Promise<string[]> => {
+		return [
+			await this.getCompiler(), source,
+			...testlib ? ["-isystem", join(extPath, "testlib")] : [],
+			"-o", prog, ...this.getArgs(type)
+		];
 	};
 
 	debug=async ({pid, prog}: LanguageDebugOpts) => {
@@ -239,12 +284,23 @@ export class LanguageProvider {
 	allExts = this.languages.flatMap(x=>x.exts);
 	extToLanguage = Object.fromEntries(this.languages.flatMap(x=>x.exts.map(y=>[`.${y}`,x]))) as Record<string, Language>;
 
+	private onCfgChangeSource = new EventEmitter<void>();
+	onCfgChange = this.onCfgChangeSource.event;
+
 	private listener: Disposable;
+	private reloadTimeout: null|NodeJS.Timeout = null;
 
 	constructor() {
 		this.listener=workspace.onDidChangeConfiguration((e)=>{
-			if (e.affectsConfiguration("cpu"))
-				this.cfg=loadCfg(this.config);
+			if (e.affectsConfiguration("cpu")) {
+				if (this.reloadTimeout!=null) clearTimeout(this.reloadTimeout);
+				
+				this.reloadTimeout=setTimeout(()=>{
+					const ncfg = loadCfg(this.config=workspace.getConfiguration("cpu"));
+					for (const k in ncfg) this.cfg[k]=ncfg[k];
+					this.onCfgChangeSource.fire();
+				}, 800);
+			}
 		});
 	}
 
@@ -270,9 +326,11 @@ export class LanguageProvider {
 	async updateLangCfg(name: string, cfg: Partial<LanguageConfig>) {
 		for (const k in cfg) {
 			const lk = k as keyof LanguageConfig;
-			this.cfg[name][lk]=cfg[lk]!.length==0 ? undefined : cfg[lk];
-			const sec = Object.fromEntries(Object.entries(this.cfg).map(([a,b]) =>[a, b[lk]]));
-			await workspace.getConfiguration("cpu").update(cfgMap[lk], sec);
+			const sec = Object.fromEntries(Object.entries(this.cfg).map(([a,b]) =>[
+				a, a==name ? cfg[lk] : b[lk]
+			]));
+
+			await workspace.getConfiguration("cpu").update(cfgMap[lk], sec, workspace.workspaceFile==undefined);
 		}
 	}
 
@@ -280,5 +338,8 @@ export class LanguageProvider {
 		return this.extToLanguage[extname(file)]??null;
 	}
 
-	dispose() {this.listener.dispose();}
+	dispose() {
+		this.listener.dispose(); this.onCfgChangeSource.dispose();
+		if (this.reloadTimeout!=null) clearTimeout(this.reloadTimeout);
+	}
 }

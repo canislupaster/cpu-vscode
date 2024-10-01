@@ -1,4 +1,4 @@
-import { CancellationToken, EventEmitter, ExtensionContext, ProcessExecution, Task, tasks, TaskScope, Uri, workspace, extensions, debug, Event, Disposable, LogOutputChannel, DebugSession, CancellationError, TaskExecution, window } from "vscode";
+import { CancellationToken, EventEmitter, ExtensionContext, ProcessExecution, Task, tasks, TaskScope, Uri, workspace, debug, Event, Disposable, LogOutputChannel, DebugSession, CancellationError, TaskExecution, window } from "vscode";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rm } from "node:fs/promises";
 import { basename, dirname, extname, join } from "node:path";
@@ -6,15 +6,11 @@ import { argsToArr, cancelPromise, delay, exists } from "./util";
 import { execFile, spawn } from "node:child_process";
 import { createReadStream, createWriteStream } from "node:fs";
 import pidusage from "pidusage";
-import { BaseLanguageClient } from "vscode-languageclient";
 import { CompileError, RunError, TestResult } from "./shared";
 import Mustache from "mustache";
 import { Language, LanguageProvider } from "./languages";
 import { Readable, Writable } from "node:stream";
-
-//https://github.com/clangd/vscode-clangd/blob/master/api/vscode-clangd.d.ts
-interface ClangdApiV1 { languageClient?: BaseLanguageClient };
-interface ClangdExtension { getApi(version: 1): ClangdApiV1; };
+import { platform } from "node:process";
 
 type CompileRequest = {
 	file: string, cached: boolean,
@@ -169,6 +165,7 @@ function startChildProgram({
 }
 
 export class Runner {
+	//needs to be at least large enough to store interactor, generator, checker, brute force, and main program
 	private cacheLimit=20;
 	private cache: Cache;
 	// wait for promise when matching active
@@ -181,15 +178,20 @@ export class Runner {
 
 	async updateCache() { await this.ctx.globalState.update("cache", this.cache); }
 
+	async rmCachedProgram(prog: string) {
+		await rm(join(this.cache.dir, prog), {force: true, recursive: true});
+		const dsym = join(this.cache.dir,`${prog}.dSYM`);
+		if (platform=="darwin" && await exists(dsym))
+			await rm(dsym, {force: true, recursive: true});
+	}
+
 	async clearCompileCache() {
-		for (const ent of this.cache.entries) {
-			await rm(join(this.cache.dir, ent), {force: true, recursive: true});
-		}
+		for (const ent of this.cache.entries) await this.rmCachedProgram(ent);
 
 		this.cache.entries=[]; this.cache.dir=this.getBuildDir();
 		await this.updateCache();
 	}
-
+	
 	getBuildDir() {
 		const buildDir = workspace.getConfiguration("cpu.buildDir").get<string>("");
 		if (buildDir && buildDir.length>0) return buildDir;
@@ -202,7 +204,16 @@ export class Runner {
 		const folder = workspace.getWorkspaceFolder(Uri.file(file))?.uri?.fsPath;
 		return folder ?? dirname(file);
 	}
-	
+
+	fileLoaded: Record<string,boolean> = {};
+	async loadFile(file: string) {
+		const language = this.languages.getLanguage(file);
+		if (language?.load && !this.fileLoaded[file]) {
+			await language.load({extPath: this.ctx.extensionPath, source: file, cwd: this.getCwd(file)});
+			this.fileLoaded[file]=true;
+		}
+	}
+
 	async compile({file,cached,type,testlib,stop}: CompileRequest): Promise<CompileResult> {
 		if (!workspace.isTrusted) throw new CompileError("Workspace is not trusted", file);
 		if (!await exists(file)) throw new CompileError("Program not found", file);
@@ -230,42 +241,34 @@ export class Runner {
 		if (hashStr in this.activeCompilations)
 			await this.activeCompilations[hashStr];
 
-		let args: string[];
-		try {
-			args=await language.compile({
-				extPath: this.ctx.extensionPath, prog: path, source: file, testlib, type
-			});
-		} catch (e) {
-			if (e instanceof Error) throw new CompileError(e.message, file);
-		}
-
 		let exec: TaskExecution|undefined;
 		const doCompile = async () => {
+			let args: string[];
+			try {
+				args=await language.compile!({
+					extPath: this.ctx.extensionPath, prog: path, source: file, testlib, type
+				});
+			} catch (e) {
+				if (e instanceof Error) throw new CompileError(e.message, file);
+				else throw new CompileError("Failed to compile", file);
+			}
+
 			const cwd = this.getCwd(file);
 
-			const clangd = extensions.getExtension<ClangdExtension>("llvm-vs-code-extensions.vscode-clangd");
+			if (language.load) {
+				await language.load({
+					extPath: this.ctx.extensionPath,
+					source: file, cwd, testlib, type
+				});
 
-			const setting: Record<string, {workingDirectory: string, compilationCommand: string[]}> = {
-				[file]: {compilationCommand: args, workingDirectory: cwd}
-			};
-
-			if (clangd!=undefined) {
-				const lsp = (await clangd.activate()).getApi(1).languageClient;
-				if (lsp!=undefined && !lsp.isRunning()) await lsp.start();
-
-				if (lsp?.isRunning())
-					//can't use DidChangeConfigurationNotification.type for arcane reasons
-					//you don't want to know
-					await lsp.sendNotification("workspace/didChangeConfiguration", {
-						settings: { compilationDatabaseChanges: setting }
-					});
+				this.fileLoaded[file]=true;
 			}
 
 			const cacheI = this.cache.entries.indexOf(hashStr);
-			if (cacheI!=-1 && await exists(path)) {
+			if (cacheI!=-1 && cached) {
 				this.cache.entries.splice(cacheI,1);
 
-				if (cached) {
+				if (await exists(path)) {
 					this.log.info(`Cache hit for ${file}, using cached program (hash ${hashStr})`);
 					this.cache.entries.push(hashStr);
 					await this.updateCache()
@@ -302,7 +305,7 @@ export class Runner {
 
 			while (this.cache.entries.length>=this.cacheLimit) {
 				const old = this.cache.entries.shift()!;
-				await rm(join(buildDir,old), {force: true, recursive: true});
+				await this.rmCachedProgram(old);
 			}
 
 			this.log.info(`Adding compiled output for ${file} to cache (hash ${hashStr})`);

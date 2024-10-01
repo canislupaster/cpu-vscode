@@ -1,7 +1,7 @@
 //ok fuck esbuild is so crappy or something, react needs to be included for <></> to work
-import React, { useEffect, useRef, useState } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { InitState, RunState, TestCase, testErr, TestOut, TestResult, TestSets } from "./shared";
-import { IconButton, send, useMessage, Text, Icon, Button, Card, Textarea, verdictColor, FileName, Alert, HiddenInput, Dropdown, DropdownPart, Input, toSearchString, Anchor } from "./ui";
+import { IconButton, send, useMessage, Text, Icon, Button, Card, Textarea, verdictColor, FileName, Alert, HiddenInput, Dropdown, DropdownPart, Input, toSearchString, Anchor, setUiState, uiState } from "./ui";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
 import { crosshairCursor, drawSelection, dropCursor, EditorView, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers, rectangularSelection, ViewUpdate } from "@codemirror/view";
@@ -195,9 +195,22 @@ export function CMReadOnly({v, err, original}: {v: string, err?: boolean, origin
 	return <div ref={cmDiv} className="flex flex-row" />;
 }
 
+const DiffContext = createContext<{isDiff: boolean, setDiff: (x: boolean)=>void}>({isDiff: false, setDiff: ()=>{}})
+
+export function DiffContextProvider({children}: {children: React.ReactNode}) {
+	const [isDiff, setDiff] = useState(uiState.diff);
+	return <DiffContext.Provider value={{isDiff, setDiff: (nd) => {
+		setDiff(nd);
+		setUiState({diff: nd});
+	}}} >
+		{children}
+	</DiffContext.Provider>;
+}
+
 export const TestCaseOutput = React.memo(({i, test, useCard, answer}: {i: number, test: TestCase, answer?: string, useCard?: boolean}) => {
+	const {isDiff, setDiff} = useContext(DiffContext);
+
 	const out = useTestOutput(i);
-	const [isDiff, setDiff] = useState(true);
 	if (out==null) return <></>;
 
 	const inner = <>
