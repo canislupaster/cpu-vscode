@@ -9,18 +9,17 @@ export class RunError extends Error {
 }
 
 export type RunCfg = {
-	disableTl: boolean,
-	tl: number, //s
-	ml: number, //mb
+	tl: number|undefined, //s
+	ml: number|undefined, //mb
 	fileIO: {input: string, output: string}|null,
 	checker: Checker|null,
 	interactor: string|null,
-	eof: boolean
+	eof: boolean,
+	focusTestIO: boolean
 };
 
 export const defaultRunCfg: RunCfg = {
-	disableTl: false, tl: 10,
-	ml: 512, eof: false,
+	tl: 10, ml: 512, eof: false, focusTestIO: true,
 	checker: null, interactor: null, fileIO: null
 };
 
@@ -100,6 +99,8 @@ export type MessageToExt = {
 } | {
 	type: "setLanguageCfg",
 	language: string, cfg: Partial<LanguageConfig>
+} | {
+	type: "panelReady"
 };
 
 export type TestResult = {

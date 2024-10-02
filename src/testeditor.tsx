@@ -265,17 +265,23 @@ function App() {
 					isOptionSelected={(x)=>
 						tc.cfg.checker!=null && tc.cfg.checker.type=="default" && tc.cfg.checker.name==x as string
 					} />
-				<Text>Disable time limit</Text>
-				<Checkbox isSelected={tc.cfg.disableTl} onValueChange={(x)=>modCfg({disableTl: x})} ></Checkbox>
+				<Text>Focus test I/O on run</Text>
+				<Checkbox isSelected={tc.cfg.focusTestIO} onValueChange={(x)=>modCfg({focusTestIO: x})} ></Checkbox>
 				<Text>Time limit (s)</Text>
-				<Input type="number" value={tc.cfg.tl} step={0.1} min={0.1} onChange={(ev)=>{
-					const v = Number.parseFloat(ev.target.value);
-					if (!isNaN(v)) modCfg({tl: v});
-				}} disabled={tc.cfg.disableTl} ></Input>
+				<div className="flex flex-row items-center gap-2" >
+					<Input type="number" value={tc.cfg.tl ?? ""} step={0.1} min={0.1} onChange={(ev)=>{
+						const v = Number.parseFloat(ev.target.value);
+						modCfg({tl: isNaN(v) ? undefined : v});
+					}} ></Input>
+					{tc.cfg.tl!=undefined && <IconButton icon={<Icon icon="close" />} onClick={()=>modCfg({tl:undefined})} />}
+				</div>
 				<Text>Memory limit (MB)</Text>
-				<Input type="number" value={tc.cfg.ml} step={16} min={16} onChange={(ev)=>{
-					modCfg({ml: Number.parseInt(ev.target.value)});
-				}} ></Input>
+				<div className="flex flex-row items-center gap-2" >
+					<Input type="number" value={tc.cfg.ml ?? ""} step={16} min={16} onChange={(ev)=>{
+						modCfg({ml: ev.target.value.length>0 ? Number.parseInt(ev.target.value) : undefined});
+					}} ></Input>
+					{tc.cfg.ml!=undefined && <IconButton icon={<Icon icon="close" />} onClick={()=>modCfg({ml:undefined})} />}
+				</div>
 				<div className="flex flex-col" >
 					<Text>Send EOF</Text>
 					<Text v="dim" >This will disable interacting with your program</Text>

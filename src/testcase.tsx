@@ -388,6 +388,10 @@ export const TestSetStatus = React.memo(({testSets, currentTestSet}: {
 				: <Text v="dim" >{cur.group}</Text>)}
 
 			<div className="flex flex-row gap-2 flex-wrap justify-center w-full mt-1" >
+				<Button icon={<Icon icon="add" />}
+					onClick={()=>send({type:"createTestSet"})}
+					className="bg-sky-700" >New</Button>
+
 				<Button icon={<Icon icon="trash" />}
 					onClick={()=>send({type:"deleteTestSet", i: currentTestSet})}
 					className="bg-rose-900" >Delete</Button>
@@ -396,19 +400,11 @@ export const TestSetStatus = React.memo(({testSets, currentTestSet}: {
 					<Button icon={<Icon icon="arrow-swap" />} >Switch</Button>
 				} parts={[
 					{type: "txt", txt: <Input placeholder="Search..."
-						className="rounded-b-none rounded-t-md"
+						className="rounded-b-none rounded-t-md" autoFocus
 						value={search} onChange={(ev) => {
 							setSearch(ev.target.value)
 						}} />, key: "search" },
-					...sets,
-					{ type: "act", name: <><Icon icon="add" /> Create testset</>,
-						act() {
-							//nextjs animates close of popover and then focuses document, which closes input box
-							//so we need some delay to ensure popover has closed
-							//(fuck)
-							setTimeout(()=>send({type: "createTestSet"}), 200);
-						}, key: "add"
-					}
+					...sets
 				]} />
 
 				{nxt!=null && <Button icon={<Icon icon="arrow-right" />}

@@ -475,7 +475,8 @@ export class Runner {
 					try {
 						if (pid!=null) {
 							const usage = await pidusage(pid);
-							wallTime=usage.elapsed; cpuTime=usage.ctime; mem=usage.memory/1024/1024;
+							wallTime=usage.elapsed; cpuTime=usage.ctime;
+							mem=Math.max(mem ?? 0,usage.memory/1024/1024);
 
 							if (tl!=undefined && wallTime>tl) limitExceeded.fire("TL");
 							else if (ml!=undefined && mem>ml) limitExceeded.fire("ML");

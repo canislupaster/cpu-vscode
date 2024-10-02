@@ -1,8 +1,8 @@
 import { CancellationTokenSource } from "vscode-languageclient";
 import { badVerdicts, CompileError, defaultRunCfg, MessageFromExt, RunCfg, RunError, RunState, RunType, Stress, TestCase, TestOut, TestResult } from "./shared";
-import { ExtensionContext, window, LogOutputChannel, EventEmitter, OpenDialogOptions, Disposable, CancellationToken, CancellationError, ProgressLocation, commands, workspace } from "vscode";
+import { ExtensionContext, window, LogOutputChannel, EventEmitter, OpenDialogOptions, Disposable, CancellationToken, CancellationError, ProgressLocation, commands, workspace, Event } from "vscode";
 import { CompileResult, Runner, Test } from "./runner";
-import { cancelPromise, exists } from "./util";
+import { cancelPromise, delay, exists } from "./util";
 import { basename, extname, join, resolve } from "node:path";
 import { mkdir, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { createReadStream } from "node:fs";
@@ -502,8 +502,7 @@ export class TestCases {
 	}
 
 	runCfgToTest = () => ({
-		tl: this.cfg.disableTl ? undefined : this.cfg.tl,
-		ml: this.cfg.ml, eof: this.cfg.eof
+		tl: this.cfg.tl, ml: this.cfg.ml, eof: this.cfg.eof
 	});
 
 	private maxStats(x: Stats, y: TestResult) {
@@ -562,10 +561,6 @@ export class TestCases {
 						c.lastRun=res;
 						
 						this.maxStats(lr, res);
-						const xs: ("cpuTime"|"wallTime"|"mem")[] = ["cpuTime","wallTime","mem"];
-						for (const prop of xs) {
-							if (res[prop]!=null) lr[prop]=Math.max(lr[prop] ?? 0, res[prop]);
-						}
 
 						if (lr.verdict==null || badVerdicts.indexOf(lr.verdict)<badVerdicts.indexOf(res.verdict))
 							lr.verdict=res.verdict;
@@ -801,14 +796,25 @@ export class TestCases {
 
 				d(window.setStatusBarMessage(`Running ${basename(path)} / ${test.name}`))
 
-				await commands.executeCommand("cpu.panel.focus");
 				this.run.runningTest=i;
 				this.upRun();
+
 				d({dispose: ()=>{
 					if (this.run.runningTest!=i) return;
 					delete this.run.runningTest;
 					this.upRun();
 				}});
+
+				if (this.cfg.focusTestIO) {
+					await commands.executeCommand("cpu.panel.focus");
+					await Promise.race([
+						new Promise(res=>this.onPanelReady(res)),
+						cancelPromise(cancel.token),
+						delay(5000).then(()=>{
+							throw new Error("Test I/O panel did not open. Disable focus test I/O if you don't want to interact with the program");
+						})
+					]);
+				}
 
 				const res = await this.runner.run(test);
 				//no verdict for generator
@@ -854,7 +860,7 @@ export class TestCases {
 
 	constructor(private ctx: ExtensionContext, private log: LogOutputChannel,
 		private send: (x: MessageFromExt)=>void, public setId: number,
-		private onSaveTests: ()=>Promise<void>) {
+		private onSaveTests: ()=>Promise<void>, private onPanelReady: Event<void>) {
 
 		log.info("Loading test cases");
 

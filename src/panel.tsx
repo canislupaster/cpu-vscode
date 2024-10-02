@@ -71,8 +71,9 @@ function App() {
 			const c = tcs.cases[runningI];
 			setState({i: runningI, tc: c, input: null, runCfg: tcs.cfg});
 			send({type: "readSource", i: runningI});
+			send({type: "panelReady"});
 		}
-	}, [runningI!=undefined && tcs.cases[runningI]?.cancellable==true]);
+	}, [cond]);
 
 	const addMsg = useCallback((x: Message) => setMsgs(([xs,total]) => {
 		const ns = [...xs,x];

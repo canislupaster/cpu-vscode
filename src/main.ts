@@ -14,7 +14,6 @@ type AllTestSets = {
 type Command = "cpu.debug"|"cpu.run"|"cpu.runAll";
 
 export default class App {
-	private toDispose: {dispose: ()=>void}[] = [];
 	cases: TestCases;
 	ts: AllTestSets;
 	deleted: Record<number,boolean> = {};
@@ -28,6 +27,12 @@ export default class App {
 	openTest?: number;
 	openFile: OpenFile=null;
 	companion: Companion;
+
+	private panelReady=new EventEmitter<void>();
+
+	testEditor = new CPUWebviewProvider("testeditor", this.onMessage, ["testCaseStream"]);
+
+	private toDispose: {dispose: ()=>void}[] = [this.panelReady, this.onMessageSource, this.testEditor];
 
 	codeFileFilter(): OpenDialogOptions["filters"] {
 		return {"Source file": this.cases.runner.languages.allExts} // 💀
@@ -81,8 +86,6 @@ export default class App {
 		if (u[0].scheme!="file") throw new Error("Selected C++ file is not on disk");
 		return resolve(u[0].fsPath);
 	}
-
-	testEditor = new CPUWebviewProvider("testeditor", this.onMessage, ["testCaseStream"]);
 
 	send(x:MessageFromExt) { this.onMessageSource.fire(x); };
 
@@ -197,14 +200,14 @@ export default class App {
 			})().catch(e=>this.handleErr(e));
 		}));
 
-		this.cases = new TestCases(ctx, log, (x)=>this.send(x), this.ts.current, ()=>this.upTestSet());
+		this.cases = new TestCases(ctx, log, (x)=>this.send(x), this.ts.current,
+			()=>this.upTestSet(), this.panelReady.event);
 		this.cases.runner.languages.onCfgChange(() => {
 			this.send({type: "updateLanguagesCfg", cfg: this.cases.runner.languages.getLangsCfg()});
 		});
 
 		this.toDispose.push(
-			this.testEditor, this.cases,
-			workspace.onDidSaveTextDocument((e) => {
+			this.cases, workspace.onDidSaveTextDocument((e) => {
 				if (e.uri.scheme=="file") {
 					const tc = this.cases.fileToCase.get(resolve(e.fileName));
 					if (tc) this.cases.reloadTestSource(tc.case).catch((e)=>this.handleErr(e));
@@ -422,7 +425,8 @@ export default class App {
 			},
 			openTestSetUrl: async ({i}) => {
 				env.openExternal(Uri.parse(this.ts.sets[i].problemLink!));
-			}
+			},
+			panelReady: async () => { this.panelReady.fire(); }
 		};
 	}
 
