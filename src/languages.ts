@@ -104,7 +104,7 @@ class CPP extends Language {
 	load = async ({extPath, testlib, source, type, cwd}: LanguageLoadOpts) => {
 		const args = [
 			await this.getCompiler(), source,
-			...testlib==true ? ["-isystem", join(extPath, "testlib")] : [],
+			...testlib!=false ? ["-isystem", join(extPath, "testlib")] : [],
 			...this.getArgs(type??null)
 		];
 

@@ -62,7 +62,11 @@ export default class App {
 		}
 		
 		console.error(e);
-		if (e instanceof Error) this.log.error(e);
+		if (e instanceof Error) {
+			this.log.error(e);
+			if (e instanceof CBError && e.err)
+				this.log.error(e.err);
+		}
 
 		if (e instanceof CBError) {
 			window.showErrorMessage(e.message);

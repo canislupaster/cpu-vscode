@@ -354,6 +354,24 @@ export const TestCaseFile = React.memo(({i, which, path, source}: TestCaseFilePr
 	</>;
 });
 
+//mounted in popover
+//if it focuses too soon, then popover has not measured itself yet and we scroll to a random ass place
+//what the fuck.
+function LazyAutoFocusSearch({search,setSearch}:{search: string, setSearch: (x:string)=>void}) {
+	const ref = useRef<HTMLInputElement>(null);
+
+	useEffect(()=>{
+		const t = setTimeout(()=>ref.current?.focus(), 50);
+		return ()=>clearTimeout(t);
+	});
+
+	return <Input placeholder="Search..." ref={ref}
+		className="rounded-b-none rounded-t-md"
+		value={search} onChange={(ev) => {
+			setSearch(ev.target.value)
+		}} />;
+}
+
 export const TestSetStatus = React.memo(({testSets, currentTestSet}: {
 	testSets: TestSets, currentTestSet: number
 })=>{
@@ -399,13 +417,15 @@ export const TestSetStatus = React.memo(({testSets, currentTestSet}: {
 				<Dropdown trigger={
 					<Button icon={<Icon icon="arrow-swap" />} >Switch</Button>
 				} parts={[
-					{type: "txt", txt: <Input placeholder="Search..."
-						className="rounded-b-none rounded-t-md" autoFocus
-						value={search} onChange={(ev) => {
-							setSearch(ev.target.value)
-						}} />, key: "search" },
+					{
+						type: "txt",
+						txt: <LazyAutoFocusSearch search={search} setSearch={setSearch} />,
+						key: "search"
+					},
 					...sets
-				]} />
+				]} onOpenChange={(x)=>{
+					if (!x) setSearch("");
+				}} />
 
 				{nxt!=null && <Button icon={<Icon icon="arrow-right" />}
 					onClick={()=>send({type:"switchTestSet", i: nxt})}

@@ -119,7 +119,7 @@ function App() {
 	useMessage((x) => {
 		if (x.type=="testCaseStream") addMsg(x);
 		else if (x.type=="testCaseRead" && x.which=="inFile" && x.i==state.i)
-			setState(s=>({...s, input: x}));
+			setState(s=>({...s, input: s.input ?? x})); //only read source at start of run, janky i know. maybe backend should just handle this for me
 	}, [state.i]);
 
 	if (state.i==null)

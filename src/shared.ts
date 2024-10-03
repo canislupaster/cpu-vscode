@@ -15,12 +15,13 @@ export type RunCfg = {
 	checker: Checker|null,
 	interactor: string|null,
 	eof: boolean,
-	focusTestIO: boolean
+	focusTestIO: boolean,
+	nProcs: number
 };
 
 export const defaultRunCfg: RunCfg = {
 	tl: 10, ml: 512, eof: false, focusTestIO: true,
-	checker: null, interactor: null, fileIO: null
+	checker: null, interactor: null, fileIO: null, nProcs: 20
 };
 
 export type RunType = "normal"|"stress"|"generator"|"runInteractor";

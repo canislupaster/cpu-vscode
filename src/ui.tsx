@@ -14,8 +14,11 @@ import { animations, handleDragstart, handleEnd, ParentConfig, performSort, } fr
 import { useDragAndDrop } from "@formkit/drag-and-drop/react";
 import { Modal, ModalProps } from "@nextui-org/modal";
 
-export const Input = ({className, icon, ...props}: {icon?: React.ReactNode}&React.InputHTMLAttributes<HTMLInputElement>) =>
-	<input type="text" className={twMerge(`text-white bg-zinc-800 w-full p-2 border-2 border-zinc-600 focus:outline-none focus:border-blue-500 transition duration-300 rounded-lg disabled:bg-zinc-600 disabled:text-gray-400 ${icon ? "pl-11" : ""}`, className)} {...props} />;
+export type InputProps = {icon?: React.ReactNode}&React.InputHTMLAttributes<HTMLInputElement>;
+export const Input = React.forwardRef<HTMLInputElement, InputProps>(
+	({className, icon, ...props}, ref) =>
+		<input ref={ref} type="text" className={twMerge(`text-white bg-zinc-800 w-full p-2 border-2 border-zinc-600 focus:outline-none focus:border-blue-500 transition duration-300 rounded-lg disabled:bg-zinc-600 disabled:text-gray-400 ${icon ? "pl-11" : ""}`, className)} {...props} />
+);
 
 export const Textarea = forwardRef<HTMLTextAreaElement, JSX.IntrinsicElements["textarea"]>((
 	{className, children, ...props}: JSX.IntrinsicElements["textarea"], ref
@@ -118,17 +121,20 @@ export type DropdownPart = ({type: "txt", txt?: React.ReactNode}
 export const AppModal = ({children,...props}: ModalProps) =>
 	<Modal portalContainer={useContext(AppCtx).rootRef.current!} {...props} >{children}</Modal>;
 
-export function Dropdown({parts, trigger}: {trigger?: React.ReactNode, parts: DropdownPart[]}) {
+export function Dropdown({parts, trigger, onOpenChange}: {trigger?: React.ReactNode, parts: DropdownPart[], onOpenChange?: (x:boolean)=>void}) {
 	const [open, setOpen] = useState(false);
 	const ctx = useContext(AppCtx);
+
 	//these components are fucked up w/ preact and props don't merge properly with container element
 	return <Popover placement="bottom" showArrow isOpen={open}
-		onOpenChange={setOpen} triggerScaleOnOpen={false} portalContainer={ctx.rootRef.current!} >
+		onOpenChange={(x)=>{
+			setOpen(x);
+			onOpenChange?.(x);
+		}} triggerScaleOnOpen={false} portalContainer={ctx.rootRef.current!} >
 		<PopoverTrigger><div>{trigger}</div></PopoverTrigger>
-		<PopoverContent className="rounded-md bg-zinc-900 border-gray-800 flex flex-col gap-2 items-stretch px-0 py-0 max-w-60 max-h-80 overflow-y-auto justify-start" >
+		<PopoverContent className="rounded-md bg-zinc-900 border-gray-800 px-0 py-0 max-w-60 max-h-80 overflow-y-auto justify-start" >
 			<div>
 				{parts.map((x,i) => {
-					//copy pasting is encouraged by tailwind!
 					if (x.type=="act")
 						return <Button key={x.key ?? i} disabled={x.disabled}
 							className={`m-0 border-zinc-700 border-t-0 first:border-t rounded-none first:rounded-t-md last:rounded-b-md hover:bg-zinc-700 w-full active:border-1 ${
@@ -211,18 +217,18 @@ function Wrapper({children,className,...props}: {children: React.ReactNode}&HTML
 	const [count, setCount] = useState(0);
 	const root = useRef<HTMLDivElement>(null);
 
-	return <AppCtx.Provider value={{
-		incTooltipCount() { setCount(x=>x+1); },
-		tooltipCount: count,
-		rootRef: root
-	}} >
-		<div ref={root}
-			className={twMerge("font-body text-gray-100 bg-zinc-900 min-h-dvh",className)}
-			{...props} >
+	return <div ref={root}
+		className={twMerge("font-body text-gray-100 bg-zinc-900 min-h-dvh",className)}
+		{...props} >
 
+		<AppCtx.Provider value={{
+			incTooltipCount() { setCount(x=>x+1); },
+			tooltipCount: count,
+			rootRef: root
+		}} >
 			<NextUIProvider className="contents" >{children}</NextUIProvider>
-		</div>
-	</AppCtx.Provider>;
+		</AppCtx.Provider>
+	</div>;
 }
 
 export function AppTooltip({content, children, placement, className, onChange, ...props}: {content: React.ReactNode, placement?: TooltipPlacement, onChange?: (x: boolean)=>void}&Omit<HTMLAttributes<HTMLDivElement>,"content">) {

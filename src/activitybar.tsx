@@ -80,7 +80,7 @@ const SmallTestCase = React.memo(({test,i,open: openOpt,setOpen,interactive}: Te
 				<Text v="dim" className="text-nowrap" >for 0 ≤ i {"< "}</Text>
 				<HiddenInput value={test.stress.maxI} onChange={(ev) => {
 					send({type: "updateStress", i, stress: {maxI: Number.parseInt(ev.target.value)}})
-				}} min={0} max={1e9} type="number" />
+				}} min={1} max={1e9} type="number" />
 			</div>
 
 			<div className="flex flex-row items-center gap-2" >
@@ -90,7 +90,7 @@ const SmallTestCase = React.memo(({test,i,open: openOpt,setOpen,interactive}: Te
 					disabled={test.cancellable!=null} onClick={run(false, "stress")} >Run stress</Button>
 			</div>
 
-			{test.stress.status && <Progress size="md" isIndeterminate={test.stress.status.i==0 && test.cancellable==true} value={test.stress.status.i} maxValue={test.stress.status.maxI} color="primary" className="mt-2" ></Progress>}
+			{test.stress.status && <Progress disableAnimation size="md" isIndeterminate={test.stress.status.i==0 && test.cancellable==true} value={test.stress.status.i} maxValue={test.stress.status.maxI} color="primary" className="mt-2" ></Progress>}
 
 			{test.stress.status && <Text v="dim" >
 				{test.stress.status.i}/{test.stress.status.maxI}{test.cancellable!=true && " (stopped)"}, {(test.stress.status.time/1000).toFixed(3)} s
@@ -132,7 +132,7 @@ const RunAllStatus = React.memo(({runAll}: {runAll: RunState["runAll"]})=>{
 
 		<div className="flex flex-row items-start gap-2 justify-between" >
 			<div className="flex flex-col gap-1 flex-1 mt-1" >
-				<Progress size="md" isIndeterminate={lr.progress[0]==0 && runAll.cancellable!=null}
+				<Progress disableAnimation size="md" isIndeterminate={lr.progress[0]==0 && runAll.cancellable!=null}
 					value={lr.progress[0]} maxValue={lr.progress[1]} color="secondary" ></Progress>
 
 				<RunStats x={lr} />

@@ -89,7 +89,7 @@ const TestCase = React.memo(({test,i,open,focus}: TestCaseI&{open: boolean,focus
 			</div>
 		</div>
 
-		<TestErr x={test} />
+		<TestErr x={test} className="mb-2" />
 
 		{test.stress && <div className="flex flex-col gap-2 items-start mb-3" >
 			<Tag className="pr-5 -ml-3" ><Icon icon="wand" /> <Text v="bold" >Stress test</Text></Tag>
@@ -240,6 +240,28 @@ function App() {
 
 	useEffect(() => setFileIO(null), [tc.cfg.fileIO])
 
+	const [err, setErr] = useState<Record<string,[string,string]|undefined>>({});
+
+	const numericInputChange = <K extends "tl"|"ml"|"nProcs">(name: string, prop: K, nat: boolean, fallback: RunCfg[K]|"none") => {
+		return (ev: React.ChangeEvent<HTMLInputElement>)=>{
+			const v = nat ? Number.parseInt(ev.target.value) : Number.parseFloat(ev.target.value);
+			const v2=isNaN(v) ? fallback : v;
+			if ((nat && !isNaN(v) && v.toString()!=ev.target.value) || v2=="none" || v<=0) {
+				setErr({...err, [prop]: [`Invalid ${name}`,
+					v2=="none" ? "Empty input or not a number" : v<=0 ? "Number must be positive" : "Not an integer"]})
+				return;
+			} else {
+				setErr({...err, [prop]: undefined})
+			}
+
+			const ncfg = {...tc.cfg};
+			ncfg[prop]=v2;
+			send({type:"setCfg", cfg: ncfg})
+		}
+	};
+
+	const oneErr = Object.values(err).find(x=>x!=undefined);
+
 	return <div className="flex flex-col gap-2 pt-4 p-3" >
 		<StressTestCreator open={isOpen} onOpenChange={onOpenChange} />
 
@@ -257,6 +279,7 @@ function App() {
 					</>}
 					<Button onClick={()=>send({type:"setInteractor",clear:false})} >Choose</Button>
 				</div>
+
 				<Text>Checker</Text>
 				<Select value={checkerV}
 					options={[...tc.checkers.map(x=>({value: x, label: x})), {value: null, label: "Choose file..."}]}
@@ -265,21 +288,20 @@ function App() {
 					isOptionSelected={(x)=>
 						tc.cfg.checker!=null && tc.cfg.checker.type=="default" && tc.cfg.checker.name==x as string
 					} />
+
 				<Text>Focus test I/O on run</Text>
 				<Checkbox isSelected={tc.cfg.focusTestIO} onValueChange={(x)=>modCfg({focusTestIO: x})} ></Checkbox>
+
 				<Text>Time limit (s)</Text>
 				<div className="flex flex-row items-center gap-2" >
-					<Input type="number" value={tc.cfg.tl ?? ""} step={0.1} min={0.1} onChange={(ev)=>{
-						const v = Number.parseFloat(ev.target.value);
-						modCfg({tl: isNaN(v) ? undefined : v});
-					}} ></Input>
+					<Input type="number" defaultValue={tc.cfg.tl ?? ""} step={0.1} min={0.1}
+						onChange={numericInputChange("time liimt", "tl", false, undefined)} ></Input>
 					{tc.cfg.tl!=undefined && <IconButton icon={<Icon icon="close" />} onClick={()=>modCfg({tl:undefined})} />}
 				</div>
 				<Text>Memory limit (MB)</Text>
 				<div className="flex flex-row items-center gap-2" >
-					<Input type="number" value={tc.cfg.ml ?? ""} step={16} min={16} onChange={(ev)=>{
-						modCfg({ml: ev.target.value.length>0 ? Number.parseInt(ev.target.value) : undefined});
-					}} ></Input>
+					<Input type="number" defaultValue={tc.cfg.ml ?? ""} step={16} min={16}
+						onChange={numericInputChange("memory limit", "ml", true, undefined)} ></Input>
 					{tc.cfg.ml!=undefined && <IconButton icon={<Icon icon="close" />} onClick={()=>modCfg({ml:undefined})} />}
 				</div>
 				<div className="flex flex-col" >
@@ -307,6 +329,17 @@ function App() {
 				<Select value={language!=null ? {label: language, value: language} : null} placeholder="Select language..."
 					options={Object.keys(tc.languagesCfg).map(k=>({value:k,label:k}))}
 					onChange={(v) => setLanguage((v as {value:string}).value)} />
+
+
+				<div className="flex flex-col" >
+					<Text>Process limit</Text>
+					<Text v="dim" >Max number of processes that can run in parallel</Text>
+				</div>
+
+				<Input type="number" defaultValue={tc.cfg.nProcs} step={1} min={1}
+					onChange={numericInputChange("number of processes", "nProcs", true, "none")} ></Input>
+
+				{oneErr && <Alert className="mt-2 col-span-2" bad title={oneErr[0]} txt={oneErr[1]} />}
 			</div>
 
 			{language!=null && <LanguageCfg language={language} cfg={tc.languagesCfg[language]} key={language} />}

@@ -94,9 +94,6 @@ function startChildProgram({
 	
 	attachError(runerr, cp, `Failed to start program ${prog}`);
 
-	//usually spawning is instant and we need to register handlers immediately to capture output
-	const launched = cp.pid==null || cp.stdout==null || cp.stderr==null;
-
 	const o: Omit<Program&{handle: ()=>number}, "spawnPromise">&{spawnPromise?: Program["spawnPromise"]}  = {
 		handle() {
 			if (o.closed && cp.pid!=undefined) {
@@ -157,6 +154,9 @@ function startChildProgram({
 	//this should be a class or something that can actually reference itself on construction
 	//but fuck that!
 	//i swear this would look sane without typescript :)
+
+	//usually spawning is instant and we need to register handlers immediately to capture output
+	const launched = cp.pid==null || cp.stdout==null || cp.stderr==null;
 	o.spawnPromise=!launched ? new Promise(res=>{
 		cp.once("spawn", ()=>res(o.handle()));
 	}) : Promise.resolve(o.handle());

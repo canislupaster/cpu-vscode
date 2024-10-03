@@ -3,7 +3,7 @@
   "publisher": "thomasqm",
   "displayName": "Competitive Programmers Union",
   "description": "A smoother competitive programming experience: test cases, debugging, stress testing and more",
-  "version": "0.0.7",
+  "version": "0.0.9",
   "icon": "resources/icon.png",
   "author": "Thomas Marlowe",
   "repository": {
@@ -11,7 +11,7 @@
     "url": "https://github.com/canislupaster/cpu-vscode"
   },
   "engines": {
-    "vscode": "^1.93.0"
+    "vscode": "^1.91.1"
   },
   "categories": [
     "Other"
@@ -212,7 +212,7 @@
     "@types/react-collapse": "^5.0.4",
     "@types/react-dom": "^18.3.0",
     "@types/shell-quote": "^1.7.5",
-    "@types/vscode": "^1.93.0",
+    "@types/vscode": "^1.91.1",
     "esbuild": "^0.23.1",
     "tailwindcss": "^3.4.10",
     "typescript": "^5.5.4",
@@ -234,7 +234,7 @@
     "@hono/node-server": "^1.12.2",
     "@nextui-org/checkbox": "^2.1.4",
     "@nextui-org/modal": "^2.0.39",
-    "@nextui-org/popover": "^2.1.27",
+    "@nextui-org/popover": "^2.1.29",
     "@nextui-org/progress": "^2.0.33",
     "@nextui-org/spinner": "^2.0.33",
     "@nextui-org/switch": "^2.0.34",

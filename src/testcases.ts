@@ -580,7 +580,7 @@ export class TestCases {
 					this.upRun();
 				};
 
-				let nworker = Math.min(20, is.length);
+				let nworker = Math.min(this.cfg.nProcs, is.length);
 				const cp = cancelPromise(cancel.token);
 				while (lr.progress[0]<lr.progress[1]) {
 					if (nworker==0) {
@@ -700,7 +700,7 @@ export class TestCases {
 
 					const stats: Stats = {cpuTime: null, wallTime: null, mem: null};
 
-					const nworker = Math.min(20, stat.maxI);
+					const nworker = Math.min(this.cfg.nProcs, stat.maxI);
 					await Promise.all([...(new Array(nworker) as unknown[])].map(async (_,workerI)=>{
 						const workDir = join(dir, `worker${workerI}`);
 						await mkdir(workDir, {recursive: true});
