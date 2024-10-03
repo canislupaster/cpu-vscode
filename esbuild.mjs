@@ -1,9 +1,12 @@
 import { spawn } from "child_process";
 import * as esbuild from "esbuild";
-import { rm, mkdir } from "fs/promises";
+import { rm, mkdir, readFile, writeFile } from "fs/promises";
+import { getLicenseFileText } from "generate-license-file";
 
 const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
+//packages not distributed in bundle
+const external = ["vscode", "vscode-languageclient"];
 
 async function main() {
   const start = async (cmd, watchArgs, name) => {
@@ -30,6 +33,12 @@ async function main() {
   if (production) {
     console.log("bundling for production...");
     await rm(outDir, {recursive: true, force: true});
+
+    const base = await readFile("LICENSE_BASE", "utf-8");
+    const thirdparty = await getLicenseFileText("./package.json");
+    await writeFile("LICENSE", `${base}\n${thirdparty}`);
+
+    console.log("recreating LICENSE...");
   }
 
   await mkdir(outDir, {recursive: true});
@@ -70,7 +79,7 @@ async function main() {
       ".ttf": "file",
       "": "empty" //esbuild tries to parse a README in terminal kit for some goddamned reason, idk if its bc there are glob requires there. no fucking clue.
     },
-    external: ['vscode'],
+    external,
     define: {
       WATCH: watch ? "true" : "false",
       PROD: production ? "true" : "false"

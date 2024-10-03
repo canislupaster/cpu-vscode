@@ -1,6 +1,5 @@
-import { CancellationTokenSource } from "vscode-languageclient";
 import { badVerdicts, CompileError, defaultRunCfg, MessageFromExt, RunCfg, RunError, RunState, RunType, Stress, TestCase, TestOut, TestResult } from "./shared";
-import { ExtensionContext, window, LogOutputChannel, EventEmitter, OpenDialogOptions, Disposable, CancellationToken, CancellationError, ProgressLocation, commands, workspace, Event } from "vscode";
+import { ExtensionContext, window, LogOutputChannel, EventEmitter, OpenDialogOptions, Disposable, CancellationToken, CancellationTokenSource, CancellationError, ProgressLocation, commands, workspace, Event } from "vscode";
 import { CompileResult, Runner, Test } from "./runner";
 import { cancelPromise, delay, exists } from "./util";
 import { basename, extname, join, resolve } from "node:path";

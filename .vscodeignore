@@ -19,3 +19,4 @@ testlib
 tailwind.config.js
 .gitmodules
 esbuild.mjs
+LICENSE_BASE
