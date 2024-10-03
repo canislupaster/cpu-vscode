@@ -3,7 +3,7 @@
   "publisher": "thomasqm",
   "displayName": "Competitive Programmers Union",
   "description": "A smoother competitive programming experience: test cases, debugging, stress testing and more",
-  "version": "0.0.11",
+  "version": "0.0.12",
   "icon": "resources/icon.png",
   "author": "Thomas Marlowe",
   "repository": {
@@ -219,10 +219,6 @@
     "typescript": "^5.5.4",
     "typescript-eslint": "^8.5.0"
   },
-  "extensionPack": [
-    "vadimcn.vscode-lldb",
-    "llvm-vs-code-extensions.vscode-clangd"
-  ],
   "dependencies": {
     "@codemirror/commands": "^6.6.1",
     "@codemirror/merge": "^6.7.0",
