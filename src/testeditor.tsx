@@ -1,16 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { RunCfg, Stress, TestCase, TestCaseI, TestResult } from "./shared";
-import { Alert, Anchor, AppModal, Button, Card, Divider, DragHandle, dragTCs, expandedVerdict, FileName, Icon, IconButton, Input, render, Select, send, Tag, Text, Textarea, useChooseFile, verdictColor } from "./ui";
-import { Spinner } from "@nextui-org/spinner";
+import { Alert, Anchor, appInit, AppModal, bgColor, Button, Card, Divider, DragHandle, dragTCs, expandedVerdict, FileName, Icon, IconButton, Input, render, Select, send, Tag, Text, Textarea, ThemeSpinner, useChooseFile, verdictColor } from "./ui";
 import { Collapse } from "react-collapse";
 import React from "react";
-import { TestCaseFile, TestCaseOutput, useTestSource, useTestCases, RunStats, TestErr, appInit, DiffContextProvider } from "./testcase";
+import { TestCaseFile, TestCaseOutput, useTestSource, useTestCases, RunStats, TestErr, DiffContextProvider } from "./testcase";
 import { Checkbox } from "@nextui-org/checkbox";
 import { ModalBody, ModalContent, ModalFooter, ModalHeader, useDisclosure } from "@nextui-org/modal";
 import { LanguageConfig } from "./languages";
 
 const Verdict = ({x}: {x: TestResult}) => <div className="flex flex-col items-end" >
-	<Text v="bold" className={`text-${verdictColor(x.verdict)}`} >
+	<Text v="bold" className={verdictColor[x.verdict].text} >
 		{expandedVerdict(x.verdict)}
 	</Text>
 	<RunStats x={x} />
@@ -63,28 +62,28 @@ const TestCase = React.memo(({test,i,open,focus}: TestCaseI&{open: boolean,focus
 	}} >Detach file</Anchor>;
 
 	return <div ref={ref} className={`flex flex-col gap-1 border-l-3 px-5 py-2 ${
-			test.lastRun ? `border-${verdictColor(test.lastRun.verdict)}` : "border-gray-500"
+			test.lastRun ? verdictColor[test.lastRun.verdict].border : "border-gray-500"
 		} ${open ? "bg-yellow-300/5" : ""}`} >
 		<div className="flex flex-row gap-2 justify-between pb-3" >
 			<div className="flex flex-row gap-2 items-end" >
 				<DragHandle/>
 				<div className="flex flex-col items-start" >
-					<span className="text-gray-400 text-sm" >
+					<Text v="dim" >
 						Test name
-					</span>
+					</Text>
 					<Input value={test.name} onChange={(e)=>send({type: "setTestName", i, name: e.target.value})} />
 				</div>
 
 				{test.cancellable==true
-					? <Button icon={<Spinner color="white" size="sm" />} className="bg-red-600" onClick={()=>send({type: "cancelRun", i})} >Stop</Button>
+					? <Button icon={<ThemeSpinner size="sm" />} className={bgColor.red} onClick={()=>send({type: "cancelRun", i})} >Stop</Button>
 					: <>
 						<Button {...d} icon={<Icon icon="refresh" />} onClick={()=>send({type: "removeTestCase", i})} >Reload file</Button>
-						<Button {...d} icon={<Icon icon="trash" />} onClick={()=>send({type: "removeTestCase", i})} className="bg-rose-900" >Delete test</Button>
+						<Button {...d} icon={<Icon icon="trash" />} onClick={()=>send({type: "removeTestCase", i})} className={bgColor.rose} >Delete test</Button>
 					</>}
 			</div>
 
 			<div className="flex flex-row items-center gap-7" >
-				{test.cancellable!=null && <Spinner color="white" size="md" />}
+				{test.cancellable!=null && <ThemeSpinner size="md" />}
 				{test.lastRun && <Verdict x={test.lastRun} />}
 			</div>
 		</div>
@@ -155,20 +154,20 @@ function StressTestCreator({open, onOpenChange}: {open: boolean, onOpenChange: (
 
 						<div className="flex flex-row gap-2 items-center" >
 							<Text v="bold" >Generator:</Text>
-							{state.generator!=null ? <FileName path={state.generator} ></FileName> : <Text className="text-red-400" >None set</Text>}
+							{state.generator!=null ? <FileName path={state.generator} ></FileName> : <Text v="err" >None set</Text>}
 						</div>
 						<Button onClick={()=>chooseGen("generator")} >Set generator</Button>
 
 						<div className="flex flex-row gap-2 items-center" >
 							<Text v="bold" >Brute force solution:</Text>
-							{state.brute!=null ? <FileName path={state.brute} ></FileName> : <Text className="text-red-400" >None set</Text>}
+							{state.brute!=null ? <FileName path={state.brute} ></FileName> : <Text v="err" >None set</Text>}
 						</div>
 						<Button onClick={()=>chooseBrute("brute force solution")} >Set brute force solution</Button>
 
 						{err && <Alert bad title="Invalid stress test" txt={err} />}
 					</ModalBody>
 					<ModalFooter>
-						<Button className="bg-rose-900" onClick={close} >Close</Button>
+						<Button className={bgColor.rose} onClick={close} >Close</Button>
 						<Button icon={<Icon icon="add" />} onClick={()=>{
 							if (state.brute==null) return setErr("Brute force solution is missing");
 							else if (state.generator==null) return setErr("Generator is missing");
@@ -203,6 +202,13 @@ function LanguageCfg({cfg, language}: {cfg: LanguageConfig, language: string}) {
 			{inp("commonArgs", "Compile arguments")}
 			{inp("fastArgs", "Compile arguments (run only)")}
 			{inp("debugArgs", "Compile arguments (debug only)")}
+
+			<div className="flex flex-col gap-2 col-span-2 items-start" >
+				<Button onClick={()=>send({type: "setLanguageCfgGlobally", language})} >
+					Apply to all workspaces
+				</Button>
+				<Text v="dim" >Note: this will override your current global settings instead of just changing settings for this workspace</Text>
+			</div>
 		</div>
 	</Card>;
 }

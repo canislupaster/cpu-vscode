@@ -1,6 +1,6 @@
 import { extname, resolve } from "path";
-import { ExtensionContext, LogOutputChannel, Uri, WebviewPanel, window, workspace, EventEmitter, ViewColumn, commands, OpenDialogOptions, env } from "vscode";
-import { InitState, MessageFromExt, MessageToExt, OpenFile, TestSetMeta, TestSets } from "./shared";
+import { ExtensionContext, LogOutputChannel, Uri, WebviewPanel, window, workspace, EventEmitter, ViewColumn, commands, OpenDialogOptions, env, ColorThemeKind } from "vscode";
+import { InitState, MessageFromExt, MessageToExt, OpenFile, TestSetMeta, TestSets, Theme } from "./shared";
 import { CBError, TestCases } from "./testcases";
 import { CPUWebviewProvider } from "./util";
 import { Companion } from "./companion";
@@ -38,6 +38,13 @@ export default class App {
 		return {"Source file": this.cases.runner.languages.allExts} // 💀
 	};
 
+	themeKindMap = new Map<ColorThemeKind, Theme>([
+		[ColorThemeKind.Light, "light"],
+		[ColorThemeKind.HighContrastLight, "light"],
+		[ColorThemeKind.Dark, "dark"],
+		[ColorThemeKind.HighContrast, "dark"]
+	]);
+
 	getInitState = (): InitState => ({
 		cfg: this.cases.cfg,
 		cases: Object.fromEntries(Object.entries(this.cases.cases).map(([k,v])=>[k,v.tc])),
@@ -46,11 +53,13 @@ export default class App {
 		openFile: this.openFile, order: this.cases.order,
 		testSets: this.ts.sets, currentTestSet: this.ts.current,
 		languagesCfg: this.cases.runner.languages.getLangsCfg(),
-		buildDir: this.cases.runner.getBuildDir(), testSetDir: this.cases.getTestsetDir()
+		buildDir: this.cases.runner.getBuildDir(), testSetDir: this.cases.getTestsetDir(),
+		theme: this.themeKindMap.get(window.activeColorTheme.kind)!
 	});
 
 	async upTestSet(mod: boolean=true) {
 		if (mod) this.ts.sets[this.ts.current].mod=Date.now();
+
 		this.send({type: "updateTestSets", current: this.ts.current, sets: this.ts.sets});
 		await this.ctx.globalState.update("testsets", this.ts);
 	}
@@ -227,23 +236,25 @@ export default class App {
 			this.log.info("Received tasks from companion", tasks);
 
 			let id = this.ts.nextId;
+			const cur = id;
 			this.ts.nextId+=tasks.length;
 
 			for (const task of tasks) {
 				this.ts.sets[id] = {
 					name: task.name, group: task.group,
 					mod: Date.now(), problemLink: task.url,
+					prev: task==tasks[0] ? undefined : id-1,
 					next: task==tasks[tasks.length-1] ? undefined : id+1
 				};
 
 				await this.cases.makeTestSetData(id, task.tests);
 
-				if (tasks.length==1) this.ts.current=id;
 				id++;
 			}
 
+			this.ts.current=cur;
 			await this.upTestSet();
-			if (tasks.length==1) await this.cases.loadTestSet(id-1, true);
+			await this.cases.loadTestSet(cur, true);
 		})().catch((e)=>this.handleErr(e))));
 
 		this.toDispose.push(window.onDidChangeActiveTextEditor(()=>this.checkActive()));
@@ -255,6 +266,10 @@ export default class App {
 
 				this.updateProgram();
 			}
+		}));
+
+		this.toDispose.push(window.onDidChangeActiveColorTheme((e)=>{
+			this.send({type: "themeChange", newTheme: this.themeKindMap.get(e.kind)!});
 		}));
 
 		this.commandHandler = {
@@ -292,7 +307,10 @@ export default class App {
 				await this.cases.loadTestSet(this.ts.nextId++, true);
 				await this.upTestSet();
 			},
-			renameTestSet: async ({name})=>{ this.ts.sets[this.ts.current].name=name; },
+			renameTestSet: async ({name})=>{
+				this.ts.sets[this.ts.current].name=name;
+				await this.upTestSet();
+			},
 			switchTestSet: async ({i})=>{
 				this.ts.current=i;
 				await this.cases.loadTestSet(i, true);
@@ -426,6 +444,9 @@ export default class App {
 			},
 			setLanguageCfg: async ({language, cfg}) => {
 				await this.cases.runner.languages.updateLangCfg(language, cfg);
+			},
+			setLanguageCfgGlobally: async ({language}) => {
+				await this.cases.runner.languages.overwriteGlobalSettings(language);
 			},
 			openTestSetUrl: async ({i}) => {
 				env.openExternal(Uri.parse(this.ts.sets[i].problemLink!));

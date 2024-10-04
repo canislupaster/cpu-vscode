@@ -1,16 +1,13 @@
 //ok fuck esbuild is so crappy or something, react needs to be included for <></> to work
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
-import { InitState, RunState, TestCase, testErr, TestOut, TestResult, TestSets } from "./shared";
-import { IconButton, send, useMessage, Text, Icon, Button, Card, Textarea, verdictColor, FileName, Alert, HiddenInput, Dropdown, DropdownPart, Input, toSearchString, Anchor, setUiState, uiState } from "./ui";
+import { RunState, TestCase, testErr, TestOut, TestResult, TestSets, Theme } from "./shared";
+import { IconButton, send, useMessage, Text, Icon, Button, Card, Textarea, verdictColor, FileName, Alert, HiddenInput, Dropdown, DropdownPart, Input, toSearchString, Anchor, setUiState, uiState, appInit, bgColor, useTheme } from "./ui";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
 import { crosshairCursor, drawSelection, dropCursor, EditorView, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers, rectangularSelection, ViewUpdate } from "@codemirror/view";
 import { EditorState, Text as CMText, ChangeSet, Extension } from "@codemirror/state";
 import { unifiedMergeView } from "@codemirror/merge";
 import { Switch } from "@nextui-org/switch";
-
-declare const init: InitState;
-export const appInit = init;
 
 type TestSource = {
 	value: string|null,
@@ -48,12 +45,12 @@ export function useTestOutput(i: number) {
 }
 
 export function useTestCases() {
-	const [tcs, setTcs] = useState<Record<number,TestCase>>(init.cases);
-	const [ordered, setOrder] = useState<number[]>(init.order);
-	const [run, setRun] = useState<RunState>(init.run);
+	const [tcs, setTcs] = useState<Record<number,TestCase>>(appInit.cases);
+	const [ordered, setOrder] = useState<number[]>(appInit.order);
+	const [run, setRun] = useState<RunState>(appInit.run);
 
 	const [state, setState] = useState({
-		...init, cases: undefined, order: undefined, run: undefined, focusOpenTest: false,
+		...appInit, cases: undefined, order: undefined, run: undefined, focusOpenTest: false,
 	});
 
 	useMessage((msg) => {
@@ -84,56 +81,56 @@ export function useTestCases() {
 	return {...state, cases: tcs, ordered, run};
 }
 
-const mainTheme = (err: boolean) => EditorView.theme({
+const mainTheme = (err: boolean, theme: Theme) => EditorView.theme({
 	".cm-gutters": {
-		"backgroundColor": "#1e1e1e",
-		"color": "#838383"
+		"backgroundColor": theme=="dark" ? "#1e1e1e" : "#e3e4e6",
+		"color": theme=="dark" ? "#838383" : "#7e7f80"
 	},
 	"&": {
-		"backgroundColor": "#1e1e1e",
-		"color": err ? "#ef4444" : "#9cdcfe",
+		"backgroundColor": theme=="dark" ? "#1e1e1e" : "#e5e7eb",
+		"color": err ? (theme=="dark" ? "#ef4444" : "#dc2626") : (theme=="dark" ? "#9cdcfe" : "#2563eb"),
 		"max-height": "10rem",
 		"flex-grow": "1",
 		width: "0",
 		"border-radius": "0.5rem",
-		"outline": "2px solid #52525b",
+		"outline": theme=="dark" ? "2px solid #52525b" : "2px solid #9ca3af",
 		"padding": "2px",
 		"transition-property": "outline",
 		"transition-timing-function": "cubic-bezier(0.4, 0, 0.2, 1)",
 		"transition-duration": "300ms",
 	},
 	"&.cm-editor.cm-focused": {
-		"outline": "2px solid #3B82F6",
+		"outline": theme=="dark" ? "2px solid #3B82F6" : "2px solid #2563eb",
 	},
 	"&.cm-editor .cm-scroller": {
 		"fontFamily": "Menlo, Monaco, Consolas, \"Andale Mono\", \"Ubuntu Mono\", \"Courier New\", monospace"
 	},
 	".cm-content": {
-		"caretColor": "#c6c6c6"
+		"caretColor": theme=="dark" ? "#c6c6c6" : "#4b5563"
 	},
 	".cm-cursor, .cm-dropCursor": {
-		"borderLeftColor": "#c6c6c6"
+		"borderLeftColor": theme=="dark" ? "#c6c6c6" : "#4b5563"
 	},
 	".cm-activeLine": {
-		"backgroundColor": "#ffffff0f"
+		"backgroundColor": theme=="dark" ? "#ffffff0f" : "#edeff0"
 	},
 	".cm-activeLineGutter": {
-		"color": "#c7c5c3",
-		"backgroundColor": "#ffffff0f"
+		"color": theme=="dark" ? "#c7c5c3" : "#000",
+		"backgroundColor": theme=="dark" ? "#ffffff0f" : "#edeff0"
 	},
 	"&.cm-focused .cm-selectionBackground, & .cm-line::selection, & .cm-selectionLayer .cm-selectionBackground, .cm-content ::selection": {
-		"background": "#6199ff2f !important"
+		"background": theme=="dark" ? "#6199ff2f !important" : "#bfdbfe !important"
 	},
 	"& .cm-selectionMatch": {
-		"backgroundColor": "#72a1ff59"
+		"backgroundColor": theme=="dark" ? "#72a1ff59" : "#93c5fd59"
 	}
-}, {dark: true});
+}, { dark: theme=="dark" });
 
-export const baseExt = (err: boolean, readOnly: boolean) => [
+export const baseExt = (err: boolean, readOnly: boolean, theme: Theme) => [
   lineNumbers(),
   highlightActiveLineGutter(),
   highlightActiveLine(),
-	mainTheme(err),
+	mainTheme(err, theme),
 	drawSelection(),
 	rectangularSelection(),
 	crosshairCursor(),
@@ -153,14 +150,18 @@ export const baseExt = (err: boolean, readOnly: boolean) => [
 ];
 
 type EditorType = { type: "err" } | { type: "out" } | { type: "edit", onc: (x: ViewUpdate)=>void };
-const bases: Record<EditorType["type"], Extension> = {
-	err: baseExt(true, true),
-	out: baseExt(false, true),
-	edit: baseExt(false, false)
-}
+const makeBasesForTheme = (x: Theme) => ({
+	err: baseExt(true, true, x),
+	out: baseExt(false, true, x),
+	edit: baseExt(false, false, x)
+});
 
-export const exts = ({type, onc}: EditorType&{onc?: (x: ViewUpdate)=>void}) => [
-	bases[type],
+const bases: Record<Theme, Record<EditorType["type"], Extension>> = {
+	light: makeBasesForTheme("light"), dark: makeBasesForTheme("dark")
+};
+
+export const exts = ({type, onc, theme}: EditorType&{onc?: (x: ViewUpdate)=>void, theme: Theme}) => [
+	bases[theme][type],
 	...onc!=undefined ? [
 		EditorView.updateListener.of(onc),
 	] : []
@@ -170,12 +171,14 @@ export function CMReadOnly({v, err, original}: {v: string, err?: boolean, origin
 	const [editor, setEditor] = useState<EditorView|null>(null);
 	const cmDiv = useRef<HTMLDivElement>(null);
 
+	const theme = useTheme();
+
 	useEffect(() => {
 		const edit = new EditorView({
 			parent: cmDiv.current!,
 			doc: v,
 			extensions: [
-				exts({type: err ? "err" : "out"}),
+				exts({type: err ? "err" : "out", theme}),
 				...original ? unifiedMergeView({
 					mergeControls: false,
 					original
@@ -185,7 +188,7 @@ export function CMReadOnly({v, err, original}: {v: string, err?: boolean, origin
 
 		setEditor(edit);
 		return () => edit.destroy();
-	}, [original]);
+	}, [original, theme]);
 
 	useEffect(()=>{
 		if (editor!=null)
@@ -241,7 +244,7 @@ export const TestCaseOutput = React.memo(({i, test, useCard, answer}: {i: number
 			<CMReadOnly err v={out.stderr} />
 		</>}
 
-		{out.hiddenSize && <FileName path={out.path} className="self-center sm:self-start" ><Button className="w-full py-1" onClick={()=>{
+		{out.hiddenSize && <FileName path={out.path} className="self-center" ><Button className="w-full py-1" onClick={()=>{
 			send({type: "openFile", path: out.path})
 		}} >
 			Show all output <Text v="dim" >({Math.ceil(out.hiddenSize/1024)} KB hidden)</Text>
@@ -249,8 +252,8 @@ export const TestCaseOutput = React.memo(({i, test, useCard, answer}: {i: number
 
 		{out.judge && <div>
 			<Text v="lg" >Checker output</Text>
-			<Textarea value={out.judge} readOnly className={`font-mono min-h-20 bg-zinc-900 mt-2 ${test.lastRun?.verdict!=null
-				? `text-${verdictColor(test.lastRun.verdict)}` : "text-lime-400"}`} rows={2} />
+			<Textarea value={out.judge} readOnly className={`font-mono min-h-20 ${bgColor.secondary} mt-2 ${test.lastRun?.verdict!=null
+				? verdictColor[test.lastRun.verdict].text : "dark:text-lime-400 text-lime-700"} ${bgColor.default}`} rows={2} />
 		</div>}
 	</>;
 
@@ -269,11 +272,12 @@ function TestCaseFileEditor({i,which,source}:TestCaseFileProps&{path:string,sour
 	});
 	const [editor, setEditor] = useState<EditorView|null>(null);
 	const cmDiv = useRef<HTMLDivElement>(null);
+	const theme = useTheme();
 
 	useEffect(() => {
 		const edit = new EditorView({
 			parent: cmDiv.current!,
-			extensions: exts({type: "edit", onc(x) {
+			extensions: exts({type: "edit", theme, onc(x) {
 				if (x.docChanged) setV(s=>{
 					if (s.lastSrcChange==x.changes) return s;
 					else return {...s, txt: x.state.doc};
@@ -283,7 +287,7 @@ function TestCaseFileEditor({i,which,source}:TestCaseFileProps&{path:string,sour
 
 		setEditor(edit);
 		return () => edit.destroy();
-	}, []);
+	}, [theme]);
 
 	useEffect(()=>{
 		if (editor==null) return;
@@ -342,7 +346,7 @@ export const TestCaseFile = React.memo(({i, which, path, source}: TestCaseFilePr
 			{path==null ? <>
 				<Text v="dim" >{"This file hasn't been initialized yet. Import something from disk or create an empty file."}</Text>
 				<div className="flex flex-row gap-2" >
-					<Button className="bg-blue-600"
+					<Button className={bgColor.sky}
 						onClick={()=>send({type: "setTestFile", i, which, ty: "create"})} >Create</Button>
 					<Button onClick={()=>send({type: "setTestFile", i, which, ty: "import"})} >Import</Button>
 				</div>
@@ -388,17 +392,27 @@ export const TestSetStatus = React.memo(({testSets, currentTestSet}: {
 	});
 
 	const cur = testSets[currentTestSet];
+
+	const prev = cur.prev!=undefined && cur.prev in testSets ? cur.prev : null;
 	const nxt = cur.next!=undefined && cur.next in testSets ? cur.next : null;
 
 	return <Card className="flex flex-col sm:flex-row sm:gap-6 flex-wrap items-stretch md:items-center" >
 		<div className="flex flex-col gap-1 items-center" >
-			<div className="flex flex-row gap-2 items-center w-full justify-center px-2" >
-				<Text v="bold" className="text-nowrap" >Test set:</Text>
+			<div className="flex flex-row justify-between gap-2 px-2 self-stretch" >
+				{prev!=null && <IconButton icon={<Icon icon="chevron-left" />}
+					onClick={()=>send({type:"switchTestSet", i: prev})} />}
 
-				{cur.group ? <Text>{cur.name}</Text> : <HiddenInput minLength={1} maxLength={25}
-					className="flex-1 overflow-x-clip w-0"
-					value={cur.name}
-					onChange={(e)=>send({type: "renameTestSet", name: e.target.value})} />}
+				<div className="flex flex-row gap-2 items-center w-full justify-center" >
+					<Text v="bold" className="text-nowrap" >Test set:</Text>
+
+					{cur.group ? <Text>{cur.name}</Text> : <HiddenInput minLength={1} maxLength={25}
+						className="flex-1 overflow-x-clip w-0"
+						value={cur.name}
+						onChange={(e)=>send({type: "renameTestSet", name: e.target.value})} />}
+				</div>
+
+				{nxt!=null && <IconButton icon={<Icon icon="chevron-right" />}
+					onClick={()=>send({type:"switchTestSet", i: nxt})} />}
 			</div>
 			
 			{cur.group && (cur.problemLink
@@ -408,11 +422,11 @@ export const TestSetStatus = React.memo(({testSets, currentTestSet}: {
 			<div className="flex flex-row gap-2 flex-wrap justify-center w-full mt-1" >
 				<Button icon={<Icon icon="add" />}
 					onClick={()=>send({type:"createTestSet"})}
-					className="bg-sky-700" >New</Button>
+					className={bgColor.sky} >New</Button>
 
 				<Button icon={<Icon icon="trash" />}
 					onClick={()=>send({type:"deleteTestSet", i: currentTestSet})}
-					className="bg-rose-900" >Delete</Button>
+					className={bgColor.rose} >Delete</Button>
 
 				<Dropdown trigger={
 					<Button icon={<Icon icon="arrow-swap" />} >Switch</Button>
@@ -426,10 +440,6 @@ export const TestSetStatus = React.memo(({testSets, currentTestSet}: {
 				]} onOpenChange={(x)=>{
 					if (!x) setSearch("");
 				}} />
-
-				{nxt!=null && <Button icon={<Icon icon="arrow-right" />}
-					onClick={()=>send({type:"switchTestSet", i: nxt})}
-					className="bg-amber-900" >Next</Button>}
 			</div>
 		</div>
 	</Card>;
@@ -439,7 +449,7 @@ export function SetProgram({tc}: {tc: ReturnType<typeof useTestCases>}) {
 	return <Card className="flex flex-col sm:flex-row sm:gap-6 flex-wrap items-center" >
 		<div className="flex flex-row gap-2 items-center justify-center" >
 			<Text v="bold" >Active program:</Text>
-			{tc.openFile!=null ? <FileName path={tc.openFile.path} /> : <Text className="text-red-400" >none set</Text>}
+			{tc.openFile!=null ? <FileName path={tc.openFile.path} /> : <Text v="err" >none set</Text>}
 		</div>
 		<div className="flex flex-row gap-2 items-center justify-center" >
 			<Button className="min-w-40" onClick={()=>{

@@ -70,7 +70,7 @@ export class CPUWebviewProvider implements WebviewViewProvider {
 			webview.asWebviewUri(Uri.joinPath(this.app!.ctx.extensionUri, resource ? "resources" : outDir, x)).toString();
 
 		webview.html = `<!DOCTYPE html>
-<html lang="en" class="dark" >
+<html lang="en" >
 <head>
 	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />

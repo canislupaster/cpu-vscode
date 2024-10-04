@@ -40,7 +40,7 @@ export type Test = {
 	noStdio?: boolean,
 	ansFile?: string,
 	dbg: "normal"|"interactor"|null,
-	onOutput?: (x: string, which: "stderr"|"stdout"|"interaction")=>void,
+	onOutput?: (x: string, which: "stderr"|"stdout"|"interaction"|"input")=>void,
 	onJudge?: (judge: string)=>void,
 	onInput?: Event<string>,
 	stop: CancellationToken,
@@ -76,7 +76,7 @@ type ProgramStartOpts = {
 	eof: boolean,
 	doStop?: boolean,
 	runerr: (msg: string, src?: Error)=>RunError,
-	onOutput?: (x: string, which:"stdout"|"stderr")=>void
+	onOutput?: (x: string, which:"stdout"|"stderr"|"input")=>void
 };
 
 function attachError(runerr: ProgramStartOpts["runerr"],
@@ -120,6 +120,7 @@ function startChildProgram({
 			if (stdin) {
 				const inp = createReadStream(stdin, "utf-8");
 				attachError(runerr, inp, "Failed to open input file");
+				inp.on("data", (v:string|Buffer) => onOutput?.(v.toString("utf-8"),"input"));
 				inp.pipe(cp.stdin, {end: eof});
 			}
 
@@ -299,8 +300,10 @@ export class Runner {
 
 			if (res=="timeout") {
 				throw new CompileError(`Compilation of ${name} timed out`, file);
-			} else if (res!=0 || !await exists(path)) {
-				throw new CompileError(`Failed to compile ${name}`, file);
+			} else if (res!=0) {
+				throw new CompileError(`Failed to compile ${name} (nonzero exit code)`, file);
+			} else if (!await exists(path)) {
+				throw new CompileError(`Failed to compile ${name} (file not found)`, file);
 			}
 
 			while (this.cache.entries.length>=this.cacheLimit) {

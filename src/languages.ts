@@ -323,14 +323,18 @@ export class LanguageProvider {
 		}));
 	}
 
-	async updateLangCfg(name: string, cfg: Partial<LanguageConfig>) {
+	async overwriteGlobalSettings(name: string) {
+		await this.updateLangCfg(name, this.cfg[name], true);
+	}
+
+	async updateLangCfg(name: string, cfg: Partial<LanguageConfig>, global=false) {
 		for (const k in cfg) {
 			const lk = k as keyof LanguageConfig;
-			const sec = Object.fromEntries(Object.entries(this.cfg).map(([a,b]) =>[
-				a, a==name ? cfg[lk] : b[lk]
-			]));
+			this.cfg[name][lk]=cfg[lk];
+			const sec = Object.fromEntries(Object.entries(this.cfg).map(([a,b]) =>[a, b[lk]]));
 
-			await workspace.getConfiguration("cpu").update(cfgMap[lk], sec, workspace.workspaceFile==undefined);
+			await workspace.getConfiguration("cpu").update(cfgMap[lk], sec,
+				global || (workspace.workspaceFolders?.length ?? 0)==0);
 		}
 	}
 

@@ -1,8 +1,7 @@
-import { RunState, RunType, TestCaseI, TestResult } from "./shared";
-import { Anchor, AppTooltip, Button, Card, Divider, DragHandle, dragTCs, HiddenInput, Icon, IconButton, Loading, render, send, Tag, Text, verdictColor } from "./ui";
-import { Spinner } from "@nextui-org/spinner";
-import { useMemo, useState } from "react";
 import React from "react";
+import { RunState, RunType, TestCaseI, TestResult } from "./shared";
+import { Anchor, AppTooltip, bgColor, Button, Card, Divider, DragHandle, dragTCs, HiddenInput, Icon, IconButton, Loading, render, send, Tag, Text, textColor, ThemeSpinner, verdictColor } from "./ui";
+import { useMemo, useState } from "react";
 import { TestCaseFile, TestCaseOutput, useTestSource, useTestCases, SetProgram, RunStats, TestErr, TestSetStatus, DiffContextProvider } from "./testcase";
 import { Collapse } from "react-collapse";
 import { Progress } from "@nextui-org/progress";
@@ -32,27 +31,29 @@ const SmallTestCase = React.memo(({test,i,open: openOpt,setOpen,interactive}: Te
 
 				<div className="flex xs:flex-row gap-2 items-center xs:justify-between flex-col justify-center" >
 					<div className="flex flex-row gap-1 items-center" >
-						<IconButton icon={<Icon icon="edit" className="text-sky-400" />} onClick={() => {
+						<IconButton icon={<Icon icon="edit" className={textColor.sky} />} onClick={() => {
 							send({type: "openTest", i});
 						}} />
 						{test.cancellable==true
 							? <IconButton icon={<Icon icon="circle-slash" />} onClick={()=>send({type: "cancelRun", i})} />
 							: <>
-								<IconButton {...d} icon={<Icon icon="play" className="text-green-500" />} onClick={run(false)} />
-								<IconButton {...d} icon={<Icon icon="debug" className="text-green-500" />} onClick={run(true)} />
-								<IconButton {...d} icon={<Icon icon="trash" className="text-red-500" />} onClick={() => {
+								<IconButton {...d} icon={<Icon icon="play" className={textColor.green} />} onClick={run(false)} />
+								<IconButton {...d} icon={<Icon icon="debug" className={textColor.green} />} onClick={run(true)} />
+								<IconButton {...d} icon={<Icon icon="trash" className={textColor.red} />} onClick={() => {
 									send({type: "removeTestCase", i});
 								}} />
 							</>}
 					</div>
 
 					{test.cancellable!=null || test.lastRun && <div className="flex flex-row gap-2 items-center" >
-						{test.cancellable!=null ? <Spinner color="white" size="sm" /> : (
+						{test.cancellable!=null ? <ThemeSpinner color="white" size="sm" /> : (
 							test.err ? <AppTooltip content={
 								<div className="max-w-full" ><TestErr x={test} noFile /></div>
-							} className="text-red-500 flex flex-row gap-1 items-center cursor-pointer" >
+							} className="flex flex-row gap-1 items-center cursor-pointer" >
 								<Icon icon="error" />
-								Error
+								<Text v="err" >
+									Error
+								</Text>
 							</AppTooltip>
 							: <></>
 						)}
@@ -62,16 +63,16 @@ const SmallTestCase = React.memo(({test,i,open: openOpt,setOpen,interactive}: Te
 			</div>
 		</div>
 
-		{interactive && <Card className="bg-zinc-900 flex flex-row items-start gap-2 rounded-none pr-3 shadow-sm pt-0 pb-0 pl-0 justify-between" >
+		{interactive && <Card className={`flex flex-row items-start gap-2 rounded-none pr-3 shadow-sm pt-0 pb-0 pl-0 justify-between ${bgColor.default}`} >
 			<Tag className="pr-6 rounded-l-none" col="secondary" >
 				<Icon icon="robot" /> <Text v="bold" >Interactive</Text>
 			</Tag>
 			<IconButton {...d} className="self-center"
-				icon={<Icon icon="debug" className="text-green-500" />}
+				icon={<Icon icon="debug" className={textColor.green} />}
 				onClick={run(true, "runInteractor")} />
 		</Card>}
 
-		{test.stress && <Card className="bg-zinc-900 flex flex-col items-start gap-2 rounded-none px-3 shadow-sm mt-1 pt-0" >
+		{test.stress && <Card className={`flex flex-col items-start gap-2 rounded-none px-3 shadow-sm mt-1 pt-0 ${bgColor.default}`} >
 			<Tag className="pr-6 rounded-t-none" >
 				<Icon icon="wand" /> <Text v="bold" >Stress test</Text>
 			</Tag>
@@ -84,9 +85,9 @@ const SmallTestCase = React.memo(({test,i,open: openOpt,setOpen,interactive}: Te
 			</div>
 
 			<div className="flex flex-row items-center gap-2" >
-				<IconButton {...d} icon={<Icon icon="play" className="text-green-500" />} onClick={run(false, "generator")} />
-				<IconButton {...d} icon={<Icon icon="debug" className="text-green-500" />} onClick={run(true, "generator")} />
-				<Button icon={<Icon icon="run-all" />} className="enabled:bg-sky-600"
+				<IconButton {...d} icon={<Icon icon="play" className={textColor.green} />} onClick={run(false, "generator")} />
+				<IconButton {...d} icon={<Icon icon="debug" className={textColor.green} />} onClick={run(true, "generator")} />
+				<Button icon={<Icon icon="run-all" />} className={bgColor.sky}
 					disabled={test.cancellable!=null} onClick={run(false, "stress")} >Run stress</Button>
 			</div>
 
@@ -109,14 +110,14 @@ const SmallTestCase = React.memo(({test,i,open: openOpt,setOpen,interactive}: Te
 			</div>
 		</Collapse>
 
-		<Button className="rounded-none rounded-b-md hover:bg-zinc-700" icon={<Icon icon={`chevron-${open ? "up" : "down"}`} />}
+		<Button className={`rounded-none rounded-b-md hover:bg-zinc-100 dark:hover:bg-zinc-700 ${bgColor.md}`} icon={<Icon icon={`chevron-${open ? "up" : "down"}`} />}
 			onClick={()=>setOpen(!open)} >
 		</Button>
 	</Card>;
 });
 
 const VerdictText = ({v,big}: {v:TestResult["verdict"], big?: boolean}) =>
-	<Text v="bold" className={`px-2 rounded-md bg-${verdictColor(v)} text-black ${big ? "text-2xl" : ""}`} >
+	<Text v="bold" className={`px-2 rounded-md ${verdictColor[v].bg} text-black ${big ? "text-2xl" : ""}`} >
 		{v}
 	</Text>;
 
@@ -163,11 +164,11 @@ function App() {
 		<SetProgram tc={tc} />
 
 		<div className="flex flex-col xs:flex-row w-full gap-1" >
-			<Button onClick={()=>send({type: "openTest"})} icon={<Icon icon="edit" />} className="bg-sky-700 flex-1" >Open editor</Button>
+			<Button onClick={()=>send({type: "openTest"})} icon={<Icon icon="edit" />} className={`${bgColor.sky} flex-1`} >Open editor</Button>
 			{tc.run.runAll.cancellable
-				? <Button icon={<Spinner color="white" size="sm" />} className="bg-red-600 flex-1" onClick={()=>send({type: "cancelRun"})} >Stop</Button>
+				? <Button icon={<ThemeSpinner color="white" size="sm" />} className={`${bgColor.red} flex-1`} onClick={()=>send({type: "cancelRun"})} >Stop</Button>
 				: <Button icon={<Icon icon="run-all" />}
-						onClick={()=>send({type: "runAll"})} className="enabled:bg-green-600 flex-1"
+						onClick={()=>send({type: "runAll"})} className={`${bgColor.green} flex-1`}
 						disabled={tc.ordered.length==0 || tc.run.runAll.cancellable!=null} >Run all</Button>}
 		</div>
 

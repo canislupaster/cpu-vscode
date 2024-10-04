@@ -100,6 +100,8 @@ export type MessageToExt = {
 } | {
 	type: "setLanguageCfg",
 	language: string, cfg: Partial<LanguageConfig>
+}| {
+	type: "setLanguageCfgGlobally", language: string
 } | {
 	type: "panelReady"
 };
@@ -163,11 +165,14 @@ export type TestCaseI = {i: number, test: TestCase};
 export type TestSetMeta = {
 	name: string, group?: string,
 	problemLink?: string,
-	mod?: number, next?: number
+	mod?: number,
+
+	prev?: number, next?: number
 };
 
 export type TestSets = Record<number,TestSetMeta>;
 export type OpenFile = {type:"last"|"file", path:string}|null;
+export type Theme = "light"|"dark";
 
 export type InitState = {
 	cases: Record<number,TestCase>,
@@ -180,8 +185,8 @@ export type InitState = {
 	order: number[],
 	testSets: TestSets,
 	currentTestSet: number,
-
-	buildDir: string, testSetDir: string
+	buildDir: string, testSetDir: string,
+	theme: Theme
 };
 
 export type TestOut = {
@@ -213,7 +218,7 @@ export type MessageFromExt = {
 } | {
 	//for running test only
 	type: "testCaseStream",
-	which: "stdout"|"stderr"|"judge"|"interaction", txt: string
+	which: "stdout"|"stderr"|"judge"|"interaction"|"input", txt: string
 } | {
 	type: "openTest", i?: number, focus: boolean
 } | {
@@ -228,4 +233,6 @@ export type MessageFromExt = {
 	sets: TestSets
 } | {
 	type: "sourceFileChosen", key: string, path: string
+} | {
+	type: "themeChange", newTheme: Theme
 };

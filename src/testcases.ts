@@ -435,6 +435,8 @@ export class TestCases {
 				if (this.run.runningTest==i)
 					this.send({type: "testCaseStream", which, txt: x});
 
+				if (which=="input") return;
+
 				const o=getO();
 				if (o.stderr.length+o.stdout.length<this.maxOutputSize) {
 					const extra = x.length+o.stderr.length+o.stdout.length-this.maxOutputSize;
@@ -582,7 +584,7 @@ export class TestCases {
 				let nworker = Math.min(this.cfg.nProcs, is.length);
 				const cp = cancelPromise(cancel.token);
 				while (lr.progress[0]<lr.progress[1]) {
-					if (nworker==0) {
+					if (nworker<=0) {
 						await Promise.race([new Promise(testFinish.event), cp]);
 						if (err) throw err;
 						if (cancel.token.isCancellationRequested) break;

@@ -1,14 +1,17 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTestCases } from "./testcase";
-import { render, useMessage, Text, Textarea, IconButton, Icon, send, FileName, Card, Divider, Anchor } from "./ui";
-import { InitState, MessageFromExt, RunCfg, TestCase } from "./shared";
+import { render, useMessage, Text, Textarea, IconButton, Icon, send, Divider, Anchor } from "./ui";
+import { InitState, RunCfg, TestCase } from "./shared";
 
-type Message = { which: "input"|"user"|"stdout"|"stderr"|"judge"|"interaction", txt: string };
-const totalTxtLimit = 100*1024;
+type Message = {
+	which: "input"|"user"|"stdout"|"stderr"|"judge"|"interaction",
+	txt: string, i: number
+};
+const totalTxtLimit = 10*1024;
 
 declare const init: InitState;
 
-function InputBar({onAdd, disabled, stopI}: {onAdd: (x: Message)=>void, disabled?: boolean, stopI: number|null}) {
+function InputBar({onAdd, disabled, stopI}: {onAdd: (x: Omit<Message,"i">)=>void, disabled?: boolean, stopI: number|null}) {
 	const [v, setV] = useState("");
 	const formRef = useRef<HTMLFormElement>(null);
 
@@ -26,7 +29,7 @@ function InputBar({onAdd, disabled, stopI}: {onAdd: (x: Message)=>void, disabled
 		handle(); ev.preventDefault();
 	}} >
 		<Textarea disabled={disabled}
-			className="flex-1 resize-none min-h-2 bg-zinc-800" value={v} onChange={(ev)=>setV(ev.target.value)}
+			className="flex-1 resize-none min-h-2" value={v} onChange={(ev)=>setV(ev.target.value)}
 			onKeyDown={(evt) => {
 				if (evt.key=="Enter" && !evt.shiftKey) {
 					handle();
@@ -44,39 +47,51 @@ function InputBar({onAdd, disabled, stopI}: {onAdd: (x: Message)=>void, disabled
 
 type TermState = {
 	i: number|null,
-	input: Extract<MessageFromExt,{type:"testCaseRead"}>|null,
 	runCfg: RunCfg,
 	tc: TestCase|null
 };
 
+const styles: Record<Message["which"], [string, string, string]> = {
+	input: ["text-blue-700 bg-blue-100 dark:text-blue-400 dark:bg-blue-100/10", "bg-blue-200 dark:bg-blue-600", "input"],
+	user: ["text-blue-700 bg-blue-100 dark:text-blue-400 dark:bg-blue-100/10", "bg-blue-200 dark:bg-blue-600", "user"],
+	interaction: ["text-teal-700 bg-teal-100 px-1 dark:text-teal-400 dark:bg-teal-100/10", "bg-teal-200 dark:bg-teal-600", "interactor"],
+	judge: ["text-orange-700 bg-orange-100 px-1 dark:text-orange-400 dark:bg-orange-100/10", "bg-orange-200 dark:bg-orange-600", "judge"],
+	stdout: ["text-gray-700 dark:text-gray-300", "bg-gray-200 dark:bg-gray-600", "stdout"],
+	stderr: ["text-red-700 dark:text-red-500 bg-red-100 dark:bg-red-100/10", "bg-red-200 dark:bg-red-600", "stderr"]
+};
+
+for (const k in styles) {
+	const s = styles[k as Message["which"]];
+	s[0] = `${s[0]} px-1`;
+	s[1] = `${s[1]} border-r-1 text-right text-gray-800 dark:text-gray-200 dark:border-r-zinc-600 border-r-zinc-200 pr-1 whitespace-nowrap`;
+}
+
 function App() {
-	const [msgs, setMsgs] = useState<[Message[],number]>([[],0]);
+	const [msgs, setMsgs] = useState<[Message[],number,number]>([[],0,0]);
 
 	const tcs = useTestCases();
 	const runningI = tcs.run.runningTest;
 
 	const [state, setState] = useState<TermState>({
 		i: runningI??null,
-		input: null,
 		runCfg: init.cfg,
 		tc: null
 	});
 
-	const preRef = useRef<HTMLPreElement>(null);
+	const preRef = useRef<HTMLTableElement>(null);
 
 	const cond = runningI!=undefined && tcs.cases[runningI]?.cancellable==true;
 	useEffect(() => {
 		if (cond) {
-			setMsgs([[],0]);
+			setMsgs([[],0,0]);
 			const c = tcs.cases[runningI];
-			setState({i: runningI, tc: c, input: null, runCfg: tcs.cfg});
-			send({type: "readSource", i: runningI});
+			setState({i: runningI, tc: c, runCfg: tcs.cfg});
 			send({type: "panelReady"});
 		}
-	}, [cond]);
+	}, [cond, runningI]);
 
-	const addMsg = useCallback((x: Message) => setMsgs(([xs,total]) => {
-		const ns = [...xs,x];
+	const addMsg = useCallback((x: Omit<Message,"i">) => setMsgs(([xs,total,ni]) => {
+		const ns = [...xs,{...x, i: ni++}];
 		total += x.txt.length;
 		let i=0;
 		while (total>totalTxtLimit) {
@@ -85,12 +100,12 @@ function App() {
 		}
 
 		if (i>0) {
-			if (totalTxtLimit==total) return [ns.slice(i), totalTxtLimit];
+			if (totalTxtLimit==total) return [ns.slice(i), totalTxtLimit, ni];
 			const s = ns[i-1].txt;
-			const pv = {which: ns[i-1].which, txt: s.slice(s.length-(totalTxtLimit-total))};
-			return [[ pv, ...ns.slice(i) ], totalTxtLimit];
+			const pv = {which: ns[i-1].which, i: ni++, txt: s.slice(s.length-(totalTxtLimit-total))};
+			return [[ pv, ...ns.slice(i) ], totalTxtLimit, ni];
 		} else {
-			return [ns, total];
+			return [ns, total, ni];
 		}
 	}), []);
 
@@ -118,8 +133,6 @@ function App() {
 
 	useMessage((x) => {
 		if (x.type=="testCaseStream") addMsg(x);
-		else if (x.type=="testCaseRead" && x.which=="inFile" && x.i==state.i)
-			setState(s=>({...s, input: s.input ?? x})); //only read source at start of run, janky i know. maybe backend should just handle this for me
 	}, [state.i]);
 
 	if (state.i==null)
@@ -128,33 +141,25 @@ function App() {
 		</div>;
 
 	return <div className="flex flex-col items-stretch w-dvw h-dvh p-2 px-5" >
-		<pre className="flex-1 overflow-y-auto" ref={preRef} >
-			{state.tc?.inFile!=undefined && <Card className="mb-2" >
-				<Text v="bold" >Input</Text>
-				{state.input!=null && state.input.source==null
-					? <FileName path={state.tc?.inFile} >Test input is too large; it will not be shown here.</FileName>
-					: state.input?.source!=null ? <div className="bg-zinc-900 rounded-md p-1 text-lime-200" >
-						{state.input.source}{"\n"}
-					</div> : "Reading input file..."}{"\n"}
-			</Card>}
-
-			{msgs[0].map((v,i) => {
-				if (v.which=="user") {
-					return <p key={i} className="w-full text-blue-500 bg-blue-100/10 px-1" ><span className="text-blue-300" >{">"}</span> {v.txt}</p>;
-				} else if (v.which=="interaction") {
-					return <p key={i} className="w-full text-teal-500 bg-teal-100/10 px-1" ><span className="text-teal-300" >INTERACTOR:</span> {v.txt}</p>;
-				} else if (v.which=="judge") {
-					return <p key={i} className="w-full text-orange-500 bg-orange-100/10 px-1" ><span className="text-orange-300" >JUDGE:</span> {v.txt}</p>;
-				} else {
-					return <span key={i} className={v.which=="stdout" ? "text-gray-300" : "text-red-500"} >{v.txt}</span>;
-				}
-			})}
-		</pre>
+		<div className="flex-1 overflow-y-auto font-mono break-all" ref={preRef} >
+			<table>
+				{msgs[0].map(v => v.txt.split("\n").filter(x=>x.length>0).map((c,i)=>{
+					const [style,leftStyle,name] = styles[v.which];
+					return <tr key={`${v.i},${i}`} className={style} >
+						<td className={leftStyle} >{name}</td>
+						<td className="w-full pl-1" >{c}</td>
+					</tr>;
+				}))}
+			</table>
+		</div>
 		<Divider className="mb-1 mt-0" />
 		{state.tc && <Text v="dim" className="mb-1" >
 			Test <Anchor onClick={()=>{
 				if (state.i!=null) send({type:"openTest", i: state.i});
 			}} >{state.tc.name}</Anchor> {runningI!=undefined ? " (running)" : " (stopped)"}
+			{msgs.length>0 && <>{", "}<Anchor onClick={()=>{
+				setMsgs([[],0,0]);
+			}} >Clear</Anchor></>}
 		</Text>}
 		<InputBar disabled={runningI==undefined || state.runCfg.eof} onAdd={addMsg}
 			stopI={state.i!=null && tcs.cases[state.i]?.cancellable==true ? state.i : null} />

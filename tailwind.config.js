@@ -1,4 +1,5 @@
 import { nextui } from "@nextui-org/theme"
+// eslint-disable-next-line no-unused-vars
 import {Config} from "tailwindcss"
 
 /** @type {Config} */
@@ -15,10 +16,12 @@ export default {
       },
       screens: {
         "xs": "350px"
+      },
+      colors: {
+        zinc: { "150": "#f0f0f2", "850": "#1e1e21" }
       }
     },
   },
-  safelist: [ ...["green-400", "red-400", "yellow-400"].flatMap(x=>[`bg-${x}`, `text-${x}`, `border-${x}`]) ],
   darkMode: ["class"],
   plugins: [nextui({
     layout: {
