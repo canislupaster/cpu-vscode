@@ -43,7 +43,7 @@ export abstract class Language {
 	abstract exts: string[];
 
 	protected get cfg(): LanguageConfig { return this.cfgs[this.name]; }
-	constructor(protected cfgs: LanguagesConfig) {}
+	constructor(protected cfgs: LanguagesConfig, protected provider: LanguageProvider) {}
 
 	getArgs(ty: "fast"|"debug"|null): string[] {
 		return [this.cfg.commonArgs, ty==null ? null : this.cfg[`${ty}Args`]]
@@ -135,6 +135,34 @@ class CPP extends Language {
 	};
 
 	debug=async ({pid, prog}: LanguageDebugOpts) => {
+		// i cant edit on bootcamp! switching back to macos and stashing my changes here :)
+		this.provider.config.get("cpp.useCppDbg")
+		if (process.platform=="win32") return {
+            "name": "(gdb) Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/abc.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${fileDirname}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Set Disassembly Flavor to Intel",
+                    "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                }
+            ]
+        };
+		
 		if (extensions.getExtension("vadimcn.vscode-lldb")==undefined)
 			throw new Error("Install CodeLLDB to debug C++");
 
@@ -277,9 +305,7 @@ export class LanguageProvider {
 	config=workspace.getConfiguration("cpu");
 	private cfg: LanguagesConfig = loadCfg(this.config);
 
-	languages: Language[] = [
-		new CPP(this.cfg), new Rust(this.cfg), new Python(this.cfg), new Java(this.cfg)
-	];
+	languages: Language[] = [ CPP, Rust, Python, Java ].map(x=>new x(this.cfg, this));
 
 	allExts = this.languages.flatMap(x=>x.exts);
 	extToLanguage = Object.fromEntries(this.languages.flatMap(x=>x.exts.map(y=>[`.${y}`,x]))) as Record<string, Language>;

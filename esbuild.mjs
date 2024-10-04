@@ -1,7 +1,8 @@
 import { spawn } from "child_process";
 import * as esbuild from "esbuild";
-import { rm, mkdir, readFile, writeFile } from "fs/promises";
+import { rm, mkdir, readFile, writeFile, copyFile, readdir } from "fs/promises";
 import { getLicenseFileText } from "generate-license-file";
+import { join } from "path";
 
 const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
@@ -67,6 +68,11 @@ async function main() {
     }
   });
 
+  for (const file of await readdir("node_modules/ntsuspend", {withFileTypes: true})) {
+    if (file.name.endsWith(".node"))
+      await copyFile(join(file.parentPath, file.name), join("out", file.name));
+  }
+
   const makeCtx = (name, entryPoints, platform) => esbuild.context({
     entryPoints,
     bundle: true,
@@ -77,6 +83,7 @@ async function main() {
     platform,
     loader: {
       ".ttf": "file",
+      ".node": "file",
       "": "empty" //esbuild tries to parse a README in terminal kit for some goddamned reason, idk if its bc there are glob requires there. no fucking clue.
     },
     external,

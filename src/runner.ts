@@ -84,14 +84,17 @@ function attachError(runerr: ProgramStartOpts["runerr"],
 	x.once("error", (err) => runerr(msg, err));
 };
 
-function startChildProgram({
+async function startChildProgram({
 	prog,stdin,stdout,doStop,runerr,onOutput,eof,cwd,args,pipeStdin,pipeStdout
-}: ProgramStartOpts): Program {
-	//sorry we're too poor for ptrace :)
+}: ProgramStartOpts): Promise<Program> {
+	const suspend = process.platform=="win32" ? (await import("ntsuspend")) : null;
+
 	const cp = spawn(prog, args, { cwd });
 
-	if (doStop && !cp.kill("SIGSTOP")) throw runerr("Couldn't pause process");
-	
+	//sorry we're too poor for ptrace :)
+	if (doStop && process.platform!="win32" && !cp.kill("SIGSTOP"))
+		throw runerr("Couldn't pause process");
+
 	attachError(runerr, cp, `Failed to start program ${prog}`);
 
 	const o: Omit<Program&{handle: ()=>number}, "spawnPromise">&{spawnPromise?: Program["spawnPromise"]}  = {
@@ -103,6 +106,8 @@ function startChildProgram({
 
 			if (cp.pid!=undefined) o.pid=cp.pid;
 			else throw runerr("PID of process not set");
+
+			if (doStop && suspend!=null) suspend.suspend(cp.pid);
 
 			if (onOutput!=undefined) {
 				cp.stdout.on("data", (v:string|Buffer) => onOutput?.(v.toString("utf-8"),"stdout"));
@@ -133,7 +138,10 @@ function startChildProgram({
 		pid: null,
 		stdin: cp.stdin, stdout: cp.stdout,
 		resume() {
-			if (!cp.kill("SIGCONT"))
+			if (!doStop || cp.pid==null) return;
+
+			if (suspend!=null) suspend.resume(cp.pid);
+			else if (!cp.kill("SIGCONT"))
 				throw runerr("Couldn't resume process");
 		},
 		dispose() {
@@ -237,7 +245,7 @@ export class Runner {
 		language.compileHash(hash, type);
 
 		const hashStr = hash.digest().toString("hex");
-		const path = join(buildDir,hashStr);
+		const path = join(buildDir, process.platform=="win32" ? `${hashStr}.exe` : hashStr);
 
 		if (hashStr in this.activeCompilations)
 			await this.activeCompilations[hashStr];
@@ -391,7 +399,7 @@ export class Runner {
 			const [progArg0, ...progArgs] = await getArgs(prog, args!=undefined ? argsToArr(args) : [], dbg=="normal");
 
 			log("Starting program");
-			const cp = startChildProgram({
+			const cp = await startChildProgram({
 				prog: progArg0, args: progArgs,
 				stdin: interactor==undefined && !noStdio ? inFile : undefined,
 				stdout: interactor==undefined && !noStdio ? output : undefined,
@@ -405,7 +413,7 @@ export class Runner {
 			if (interactor!=undefined) {
 				const [intArg0, ...intArgs] = await getArgs(interactor, [inFile ?? "", output], dbg=="interactor")
 				log("Starting interactor");
-				interactorProg = startChildProgram({
+				interactorProg = await startChildProgram({
 					prog: intArg0, args: intArgs,
 					pipeStdin: cp.stdout, pipeStdout: cp.stdin, runerr,
 					doStop: dbg=="interactor" && interactor.lang.stopOnDebug,
