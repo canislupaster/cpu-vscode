@@ -332,9 +332,9 @@ export const verdictColor = Object.fromEntries(allVerdicts.map(verdict=>{
 		case "AC": x=["bg-green-400", "dark:text-green-400 text-green-600", "dark:border-green-400 border-green-600"]; break;
 		case "RE":
 		case "WA":
-		case "INT": x=["bg-red-400", "dark:text-red-400 text-red-600", "dark:border-green-400 border-green-600"]; break;
+		case "INT": x=["bg-red-400", "dark:text-red-400 text-red-600", "dark:border-red-400 border-red-600"]; break;
 		case "TL":
-		case "ML": x=["bg-yellow-400", "dark:text-yellow-400 text-yellow-600", "dark:border-green-400 border-green-600"]; break;
+		case "ML": x=["bg-yellow-400", "dark:text-yellow-400 text-yellow-600", "dark:border-yellow-400 border-yellow-600"]; break;
 	}
 
 	return [verdict, {bg: x[0], text: x[1], border: x[2]}];

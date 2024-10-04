@@ -1,4 +1,4 @@
-![GitHub commit activity](https://img.shields.io/github/commit-activity/:interval/canislupaster/cpu-vscode)
+![GitHub last commit](https://img.shields.io/github/last-commit/canislupaster/cpu-vscode)
 ![Visual Studio Marketplace Downloads](https://img.shields.io/visual-studio-marketplace/d/thomasqm.cpu)
 ![Visual Studio Marketplace Rating](https://img.shields.io/visual-studio-marketplace/r/thomasqm.cpu)
 ![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/thomasqm.cpu)
