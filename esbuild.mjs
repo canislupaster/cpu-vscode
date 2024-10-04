@@ -77,6 +77,7 @@ async function main() {
     platform,
     loader: {
       ".ttf": "file",
+      ".node": "file",
       "": "empty" //esbuild tries to parse a README in terminal kit for some goddamned reason, idk if its bc there are glob requires there. no fucking clue.
     },
     external,

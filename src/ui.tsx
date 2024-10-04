@@ -34,7 +34,7 @@ export const bgColor = {
 }
 
 export const borderColor = {
-	default: "focus:outline-none focus:border-blue-500 active:border-blue-500 border-zinc-300 hover:border-zinc-400 dark:border-zinc-600 dark:hover:border-zinc-600 disabled:bg-zinc-300 aria-expanded:border-blue-500"
+	default: "focus:outline-none border-zinc-300 hover:border-zinc-400 dark:border-zinc-600 dark:hover:border-zinc-500 disabled:bg-zinc-300 aria-expanded:border-blue-500 focus:border-blue-500 active:border-blue-500 dark:focus:border-blue-500 dark:active:border-blue-500"
 };
 
 const containerDefault = `${textColor.default} ${bgColor.default} ${borderColor.default}`;
@@ -141,7 +141,7 @@ const selectStyle: ClassNamesConfig<unknown,boolean> = {
 }
 
 export const Select = (props: React.ComponentProps<ReactSelect>) =>
-	<ReactSelect unstyled classNames={selectStyle} {...props} />;
+	<ReactSelect unstyled classNames={selectStyle} styles={{ menu: base => ({ ...base, zIndex: 50 }) }} {...props} />;
 
 export type DropdownPart = ({type: "txt", txt?: React.ReactNode}
 	| { type: "act", name?: React.ReactNode, act: ()=>void,

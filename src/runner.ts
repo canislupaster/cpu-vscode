@@ -84,15 +84,25 @@ function attachError(runerr: ProgramStartOpts["runerr"],
 	x.once("error", (err) => runerr(msg, err));
 };
 
-function startChildProgram({
+async function startChildProgram({
 	prog,stdin,stdout,doStop,runerr,onOutput,eof,cwd,args,pipeStdin,pipeStdout
-}: ProgramStartOpts): Program {
-	//sorry we're too poor for ptrace :)
+}: ProgramStartOpts): Promise<Program> {
 	const cp = spawn(prog, args, { cwd });
 
-	if (doStop && !cp.kill("SIGSTOP")) throw runerr("Couldn't pause process");
-	
+	//sorry we're too poor for ptrace :)
+	if (doStop && process.platform!="win32" && !cp.kill("SIGSTOP"))
+		throw runerr("Couldn't pause process");
+
 	attachError(runerr, cp, `Failed to start program ${prog}`);
+
+	const handleStdin=()=>{
+		if (stdin) {
+			const inp = createReadStream(stdin, "utf-8");
+			attachError(runerr, inp, "Failed to open input file");
+			inp.on("data", (v:string|Buffer) => onOutput?.(v.toString("utf-8"),"input"));
+			inp.pipe(cp.stdin, {end: eof});
+		}
+	};
 
 	const o: Omit<Program&{handle: ()=>number}, "spawnPromise">&{spawnPromise?: Program["spawnPromise"]}  = {
 		handle() {
@@ -116,15 +126,9 @@ function startChildProgram({
 			}
 
 			if (pipeStdout) cp.stdout.pipe(pipeStdout);
-
-			if (stdin) {
-				const inp = createReadStream(stdin, "utf-8");
-				attachError(runerr, inp, "Failed to open input file");
-				inp.on("data", (v:string|Buffer) => onOutput?.(v.toString("utf-8"),"input"));
-				inp.pipe(cp.stdin, {end: eof});
-			}
-
 			if (pipeStdin) pipeStdin.pipe(cp.stdin);
+
+			if (!doStop) handleStdin();
 
 			return cp.pid;
 		},
@@ -133,8 +137,12 @@ function startChildProgram({
 		pid: null,
 		stdin: cp.stdin, stdout: cp.stdout,
 		resume() {
-			if (!cp.kill("SIGCONT"))
+			if (!doStop || cp.pid==null) return;
+
+			if (process.platform!="win32" && !cp.kill("SIGCONT"))
 				throw runerr("Couldn't resume process");
+
+			handleStdin();
 		},
 		dispose() {
 			if (!this.closed && this.pid!=null && !kill(this.pid))
@@ -237,7 +245,7 @@ export class Runner {
 		language.compileHash(hash, type);
 
 		const hashStr = hash.digest().toString("hex");
-		const path = join(buildDir,hashStr);
+		const path = join(buildDir, process.platform=="win32" ? `${hashStr}.exe` : hashStr);
 
 		if (hashStr in this.activeCompilations)
 			await this.activeCompilations[hashStr];
@@ -391,7 +399,7 @@ export class Runner {
 			const [progArg0, ...progArgs] = await getArgs(prog, args!=undefined ? argsToArr(args) : [], dbg=="normal");
 
 			log("Starting program");
-			const cp = startChildProgram({
+			const cp = await startChildProgram({
 				prog: progArg0, args: progArgs,
 				stdin: interactor==undefined && !noStdio ? inFile : undefined,
 				stdout: interactor==undefined && !noStdio ? output : undefined,
@@ -405,7 +413,7 @@ export class Runner {
 			if (interactor!=undefined) {
 				const [intArg0, ...intArgs] = await getArgs(interactor, [inFile ?? "", output], dbg=="interactor")
 				log("Starting interactor");
-				interactorProg = startChildProgram({
+				interactorProg = await startChildProgram({
 					prog: intArg0, args: intArgs,
 					pipeStdin: cp.stdout, pipeStdout: cp.stdin, runerr,
 					doStop: dbg=="interactor" && interactor.lang.stopOnDebug,
@@ -442,12 +450,24 @@ export class Runner {
 
 				log("Starting debugger");
 
-				cbs.push(debug.onDidStartDebugSession((x)=>{
-					if (!dbgStarted) {
-						dbgSession=x; dbgStarted=true;
-						log("Debug session started");
-					}
-				}));
+				const debugStartPromise = new Promise<void>((res)=>{
+					cbs.push(debug.onDidStartDebugSession((x)=>{
+						if (!dbgStarted) {
+							dbgSession=x; dbgStarted=true;
+							log("Debug session started");
+							res();
+						}
+					}));
+				});
+
+				debugSessionEndPromise = new Promise<void>(res=>
+					cbs.push(debug.onDidTerminateDebugSession((e)=>{
+						if (e.id==dbgSession?.id) {
+							dbgSession=null; res();
+							log("Debug session ended");
+						}
+					}))
+				);
 
 				//attaching resumes program
 				if (!await debug.startDebugging(workspace.getWorkspaceFolder(Uri.file(prog.source)), launchCfg)
@@ -460,17 +480,14 @@ export class Runner {
 					return null;
 				}
 
+				await Promise.race([
+					debugStartPromise,
+					timeout(10000, "Debug session did not start"),
+					cancelPromise
+				]);
+
 				if (dbg=="interactor") interactorProg!.resume();
 				else cp.resume();
-
-				debugSessionEndPromise = new Promise<void>(res=>
-					cbs.push(debug.onDidTerminateDebugSession((e)=>{
-						if (e.id==dbgSession?.id) {
-							dbgSession=null; res();
-							log("Debug session ended");
-						}
-					}))
-				);
 			}
 
 			void (async () => {

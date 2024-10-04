@@ -43,7 +43,7 @@ export abstract class Language {
 	abstract exts: string[];
 
 	protected get cfg(): LanguageConfig { return this.cfgs[this.name]; }
-	constructor(protected cfgs: LanguagesConfig) {}
+	constructor(protected cfgs: LanguagesConfig, protected provider: LanguageProvider) {}
 
 	getArgs(ty: "fast"|"debug"|null): string[] {
 		return [this.cfg.commonArgs, ty==null ? null : this.cfg[`${ty}Args`]]
@@ -83,6 +83,49 @@ async function waitForPort(port: number) {
 //https://github.com/clangd/vscode-clangd/blob/master/api/vscode-clangd.d.ts
 interface ClangdApiV1 { languageClient?: BaseLanguageClient };
 interface ClangdExtension { getApi(version: 1): ClangdApiV1; };
+
+async function nativeDebugConfiguration(provider: LanguageProvider, prog: string, pid: number): Promise<DebugConfiguration> {
+	let dbg = provider.config.get<"gdb"|"lldb"|"codelldb"|"auto">("debugger");
+	if (dbg=="auto") dbg=process.platform=="win32" ? "gdb" : "codelldb";
+	
+	if (dbg == "gdb") return {
+		name: "(gdb) Attach",
+		type: "cppdbg",
+		request: "attach",
+		processId: pid, program: prog,
+		environment: [],
+		externalConsole: false,
+		MIMode: "gdb",
+		miDebuggerPath: "gdb",
+		setupCommands: [
+			{
+				description: "Enable pretty-printing for gdb",
+				text: "-enable-pretty-printing",
+				ignoreFailures: true
+			},
+			{
+				description: "Set Disassembly Flavor to Intel",
+				text: "-gdb-set disassembly-flavor intel",
+				ignoreFailures: true
+			}
+		]
+	}; else if (dbg == "lldb") return {
+		name: "(lldb) Attach",
+		type: "cppdbg",
+		request: "attach",
+		program: prog, processId: pid,
+		MIMode: "lldb"
+	}; else {
+		if (extensions.getExtension("vadimcn.vscode-lldb")==undefined)
+			throw new Error("Install CodeLLDB to debug C++/Rust, or change your debugger in settings");
+
+		return {
+			type: "lldb", request: "attach",
+			name: "Attach", program: prog,
+			pid, expressions: "native"
+		};
+	}
+}
 
 class CPP extends Language {
 	compiler: string|null=null;
@@ -135,14 +178,7 @@ class CPP extends Language {
 	};
 
 	debug=async ({pid, prog}: LanguageDebugOpts) => {
-		if (extensions.getExtension("vadimcn.vscode-lldb")==undefined)
-			throw new Error("Install CodeLLDB to debug C++");
-
-		return {
-			type: "lldb", request: "attach",
-			name: "Attach", program: prog,
-			pid, expressions: "native"
-		};
+		return nativeDebugConfiguration(this.provider, prog, pid);
 	};
 }
 
@@ -233,19 +269,11 @@ class Rust extends Language {
 	stopOnDebug=true;
 
 	compile=async ({prog, source, type}: LanguageCompileOpts): Promise<string[]> => {
-		await mkdir(prog, {recursive:true});
 		return [this.cfg.compiler ?? "rustc", source, "-o", prog, ...this.getArgs(type)];
 	};
 
 	debug=async ({pid, prog}: LanguageDebugOpts) => {
-		if (extensions.getExtension("vadimcn.vscode-lldb")==undefined)
-			throw new Error("Install CodeLLDB to debug Rust");
-
-		return {
-			type: "lldb", request: "attach",
-			name: "Attach", program: prog,
-			pid, expressions: "native"
-		};
+		return nativeDebugConfiguration(this.provider, prog, pid);
 	};
 }
 
@@ -277,9 +305,7 @@ export class LanguageProvider {
 	config=workspace.getConfiguration("cpu");
 	private cfg: LanguagesConfig = loadCfg(this.config);
 
-	languages: Language[] = [
-		new CPP(this.cfg), new Rust(this.cfg), new Python(this.cfg), new Java(this.cfg)
-	];
+	languages: Language[] = [ CPP, Rust, Python, Java ].map(x=>new x(this.cfg, this));
 
 	allExts = this.languages.flatMap(x=>x.exts);
 	extToLanguage = Object.fromEntries(this.languages.flatMap(x=>x.exts.map(y=>[`.${y}`,x]))) as Record<string, Language>;
