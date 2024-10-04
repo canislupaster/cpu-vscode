@@ -68,9 +68,11 @@ async function main() {
     }
   });
 
-  for (const file of await readdir("node_modules/ntsuspend", {withFileTypes: true})) {
-    if (file.name.endsWith(".node"))
-      await copyFile(join(file.parentPath, file.name), join("out", file.name));
+  if (process.platform=="win32") {
+      for (const file of await readdir("node_modules/ntsuspend", {withFileTypes: true})) {
+      if (file.name.endsWith(".node"))
+        await copyFile(join(file.parentPath, file.name), join("out", file.name));
+    }
   }
 
   const makeCtx = (name, entryPoints, platform) => esbuild.context({

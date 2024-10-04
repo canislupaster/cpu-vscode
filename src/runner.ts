@@ -84,10 +84,15 @@ function attachError(runerr: ProgramStartOpts["runerr"],
 	x.once("error", (err) => runerr(msg, err));
 };
 
+type NTSuspend = {suspend: (pid: number)=>void, resume: (pid: number)=>void};
+
 async function startChildProgram({
 	prog,stdin,stdout,doStop,runerr,onOutput,eof,cwd,args,pipeStdin,pipeStdout
 }: ProgramStartOpts): Promise<Program> {
-	const suspend = process.platform=="win32" ? (await import("ntsuspend")) : null;
+	// man....
+	// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+	//@ts-ignore
+	const suspend = process.platform=="win32" ? (await import("ntsuspend").catch()) as NTSuspend : null;
 
 	const cp = spawn(prog, args, { cwd });
 
@@ -96,6 +101,15 @@ async function startChildProgram({
 		throw runerr("Couldn't pause process");
 
 	attachError(runerr, cp, `Failed to start program ${prog}`);
+
+	const handleStdin=()=>{
+		if (stdin) {
+			const inp = createReadStream(stdin, "utf-8");
+			attachError(runerr, inp, "Failed to open input file");
+			inp.on("data", (v:string|Buffer) => onOutput?.(v.toString("utf-8"),"input"));
+			inp.pipe(cp.stdin, {end: eof});
+		}
+	};
 
 	const o: Omit<Program&{handle: ()=>number}, "spawnPromise">&{spawnPromise?: Program["spawnPromise"]}  = {
 		handle() {
@@ -121,15 +135,9 @@ async function startChildProgram({
 			}
 
 			if (pipeStdout) cp.stdout.pipe(pipeStdout);
-
-			if (stdin) {
-				const inp = createReadStream(stdin, "utf-8");
-				attachError(runerr, inp, "Failed to open input file");
-				inp.on("data", (v:string|Buffer) => onOutput?.(v.toString("utf-8"),"input"));
-				inp.pipe(cp.stdin, {end: eof});
-			}
-
 			if (pipeStdin) pipeStdin.pipe(cp.stdin);
+
+			if (!doStop) handleStdin();
 
 			return cp.pid;
 		},
@@ -143,6 +151,8 @@ async function startChildProgram({
 			if (suspend!=null) suspend.resume(cp.pid);
 			else if (!cp.kill("SIGCONT"))
 				throw runerr("Couldn't resume process");
+
+			handleStdin();
 		},
 		dispose() {
 			if (!this.closed && this.pid!=null && !kill(this.pid))
@@ -450,12 +460,24 @@ export class Runner {
 
 				log("Starting debugger");
 
-				cbs.push(debug.onDidStartDebugSession((x)=>{
-					if (!dbgStarted) {
-						dbgSession=x; dbgStarted=true;
-						log("Debug session started");
-					}
-				}));
+				const debugStartPromise = new Promise<void>((res)=>{
+					cbs.push(debug.onDidStartDebugSession((x)=>{
+						if (!dbgStarted) {
+							dbgSession=x; dbgStarted=true;
+							log("Debug session started");
+							res();
+						}
+					}));
+				});
+
+				debugSessionEndPromise = new Promise<void>(res=>
+					cbs.push(debug.onDidTerminateDebugSession((e)=>{
+						if (e.id==dbgSession?.id) {
+							dbgSession=null; res();
+							log("Debug session ended");
+						}
+					}))
+				);
 
 				//attaching resumes program
 				if (!await debug.startDebugging(workspace.getWorkspaceFolder(Uri.file(prog.source)), launchCfg)
@@ -468,17 +490,14 @@ export class Runner {
 					return null;
 				}
 
+				await Promise.race([
+					debugStartPromise,
+					timeout(1000, "Debug session did not start"),
+					cancelPromise
+				]);
+
 				if (dbg=="interactor") interactorProg!.resume();
 				else cp.resume();
-
-				debugSessionEndPromise = new Promise<void>(res=>
-					cbs.push(debug.onDidTerminateDebugSession((e)=>{
-						if (e.id==dbgSession?.id) {
-							dbgSession=null; res();
-							log("Debug session ended");
-						}
-					}))
-				);
 			}
 
 			void (async () => {

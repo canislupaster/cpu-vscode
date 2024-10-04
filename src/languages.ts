@@ -84,6 +84,49 @@ async function waitForPort(port: number) {
 interface ClangdApiV1 { languageClient?: BaseLanguageClient };
 interface ClangdExtension { getApi(version: 1): ClangdApiV1; };
 
+async function nativeDebugConfiguration(provider: LanguageProvider, prog: string, pid: number): Promise<DebugConfiguration> {
+	let dbg = provider.config.get<"gdb"|"lldb"|"codelldb"|"auto">("debugger");
+	if (dbg=="auto") dbg=process.platform=="win32" ? "gdb" : "codelldb";
+	
+	if (dbg=="gdb") return {
+		name: "(gdb) Attach",
+		type: "cppdbg",
+		request: "attach",
+		processId: pid, program: prog,
+		environment: [],
+		externalConsole: false,
+		MIMode: "gdb",
+		miDebuggerPath: "gdb",
+		setupCommands: [
+				{
+						description: "Enable pretty-printing for gdb",
+						text: "-enable-pretty-printing",
+						ignoreFailures: true
+				},
+				{
+						description: "Set Disassembly Flavor to Intel",
+						text: "-gdb-set disassembly-flavor intel",
+						ignoreFailures: true
+				}
+		]
+	}; else if (dbg=="lldb") return {
+		name: "(lldb) Attach",
+		type: "cppdbg",
+		request: "attach",
+		program: prog, processId: pid,
+		MIMode: "lldb"
+	}; else {
+		if (extensions.getExtension("vadimcn.vscode-lldb")==undefined)
+			throw new Error("Install CodeLLDB to debug C++/Rust, or change your debugger in settings");
+
+		return {
+			type: "lldb", request: "attach",
+			name: "Attach", program: prog,
+			pid, expressions: "native"
+		};
+	}
+}
+
 class CPP extends Language {
 	compiler: string|null=null;
 	name="c++";
@@ -135,42 +178,7 @@ class CPP extends Language {
 	};
 
 	debug=async ({pid, prog}: LanguageDebugOpts) => {
-		// i cant edit on bootcamp! switching back to macos and stashing my changes here :)
-		this.provider.config.get("cpp.useCppDbg")
-		if (process.platform=="win32") return {
-            "name": "(gdb) Launch",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/abc.exe",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${fileDirname}",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "gdb",
-            "miDebuggerPath": "gdb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                },
-                {
-                    "description": "Set Disassembly Flavor to Intel",
-                    "text": "-gdb-set disassembly-flavor intel",
-                    "ignoreFailures": true
-                }
-            ]
-        };
-		
-		if (extensions.getExtension("vadimcn.vscode-lldb")==undefined)
-			throw new Error("Install CodeLLDB to debug C++");
-
-		return {
-			type: "lldb", request: "attach",
-			name: "Attach", program: prog,
-			pid, expressions: "native"
-		};
+		return nativeDebugConfiguration(this.provider, prog, pid);
 	};
 }
 
@@ -261,19 +269,11 @@ class Rust extends Language {
 	stopOnDebug=true;
 
 	compile=async ({prog, source, type}: LanguageCompileOpts): Promise<string[]> => {
-		await mkdir(prog, {recursive:true});
 		return [this.cfg.compiler ?? "rustc", source, "-o", prog, ...this.getArgs(type)];
 	};
 
 	debug=async ({pid, prog}: LanguageDebugOpts) => {
-		if (extensions.getExtension("vadimcn.vscode-lldb")==undefined)
-			throw new Error("Install CodeLLDB to debug Rust");
-
-		return {
-			type: "lldb", request: "attach",
-			name: "Attach", program: prog,
-			pid, expressions: "native"
-		};
+		return nativeDebugConfiguration(this.provider, prog, pid);
 	};
 }
 

@@ -162,6 +162,20 @@
             "rust": "",
             "c++": "-Wall -std=c++20 -g"
           }
+        },
+        "cpu.debugger": {
+          "description": "Debugger for C++/Rust",
+          "type": "string",
+          "enum": [
+            "lldb", "gdb", "codelldb", "auto"
+          ],
+          "enumDescriptions": [
+            "Use cppdbg with lldb",
+            "Use cppdbg with gdb",
+            "Use CodeLLDB",
+            "GDB on Windows, CodeLLDB otherwise"
+          ],
+          "default": "auto"
         }
       }
     },
@@ -245,7 +259,6 @@
     "globals": "^15.9.0",
     "hono": "^4.6.1",
     "mustache": "^4.2.0",
-    "ntsuspend": "^1.0.2",
     "pidusage": "^3.0.2",
     "react": "^18.3.1",
     "react-collapse": "^5.1.1",
@@ -254,5 +267,8 @@
     "shell-quote": "^1.8.1",
     "tailwind-merge": "^2.5.2",
     "vscode-languageclient": "^8.0.2"
+  },
+  "optionalDependencies": {
+    "ntsuspend": "^1.0.2"
   }
 }
