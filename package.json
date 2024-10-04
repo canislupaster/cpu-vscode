@@ -167,7 +167,10 @@
           "description": "Debugger for C++/Rust",
           "type": "string",
           "enum": [
-            "lldb", "gdb", "codelldb", "auto"
+            "lldb",
+            "gdb",
+            "codelldb",
+            "auto"
           ],
           "enumDescriptions": [
             "Use cppdbg with lldb",
@@ -267,8 +270,5 @@
     "shell-quote": "^1.8.1",
     "tailwind-merge": "^2.5.2",
     "vscode-languageclient": "^8.0.2"
-  },
-  "optionalDependencies": {
-    "ntsuspend": "^1.0.2"
   }
 }

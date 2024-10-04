@@ -157,7 +157,7 @@ function App() {
 			Test <Anchor onClick={()=>{
 				if (state.i!=null) send({type:"openTest", i: state.i});
 			}} >{state.tc.name}</Anchor> {runningI!=undefined ? " (running)" : " (stopped)"}
-			{msgs.length>0 && <>{", "}<Anchor onClick={()=>{
+			{msgs[0].length>0 && <>{", "}<Anchor onClick={()=>{
 				setMsgs([[],0,0]);
 			}} >Clear</Anchor></>}
 		</Text>}

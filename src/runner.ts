@@ -84,16 +84,9 @@ function attachError(runerr: ProgramStartOpts["runerr"],
 	x.once("error", (err) => runerr(msg, err));
 };
 
-type NTSuspend = {suspend: (pid: number)=>void, resume: (pid: number)=>void};
-
 async function startChildProgram({
 	prog,stdin,stdout,doStop,runerr,onOutput,eof,cwd,args,pipeStdin,pipeStdout
 }: ProgramStartOpts): Promise<Program> {
-	// man....
-	// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-	//@ts-ignore
-	const suspend = process.platform=="win32" ? (await import("ntsuspend").catch()) as NTSuspend : null;
-
 	const cp = spawn(prog, args, { cwd });
 
 	//sorry we're too poor for ptrace :)
@@ -121,8 +114,6 @@ async function startChildProgram({
 			if (cp.pid!=undefined) o.pid=cp.pid;
 			else throw runerr("PID of process not set");
 
-			if (doStop && suspend!=null) suspend.suspend(cp.pid);
-
 			if (onOutput!=undefined) {
 				cp.stdout.on("data", (v:string|Buffer) => onOutput?.(v.toString("utf-8"),"stdout"));
 				cp.stderr.on("data", (v:string|Buffer) => onOutput?.(v.toString("utf-8"),"stderr"));
@@ -148,8 +139,7 @@ async function startChildProgram({
 		resume() {
 			if (!doStop || cp.pid==null) return;
 
-			if (suspend!=null) suspend.resume(cp.pid);
-			else if (!cp.kill("SIGCONT"))
+			if (process.platform!="win32" && !cp.kill("SIGCONT"))
 				throw runerr("Couldn't resume process");
 
 			handleStdin();
@@ -492,7 +482,7 @@ export class Runner {
 
 				await Promise.race([
 					debugStartPromise,
-					timeout(1000, "Debug session did not start"),
+					timeout(10000, "Debug session did not start"),
 					cancelPromise
 				]);
 

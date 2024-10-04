@@ -22,6 +22,14 @@ html, body {
 	margin: 0 !important;
 }
 
+body.vscode-dark {
+	background: #18181b;
+}
+
+body.vscode-light {
+	background: #f4f4f5;
+}
+
 .ReactCollapse--collapse {
   transition: height 250ms;
 }

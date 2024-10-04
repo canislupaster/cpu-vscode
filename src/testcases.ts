@@ -797,6 +797,14 @@ export class TestCases {
 
 				d(window.setStatusBarMessage(`Running ${basename(path)} / ${test.name}`))
 
+				const panelReady = this.cfg.focusTestIO ? Promise.race([
+					new Promise(res=>d(this.onPanelReady(res))),
+					cancelPromise(cancel.token),
+					delay(5000).then(()=>{
+						throw new Error("Test I/O panel did not open. Disable focus test I/O if you don't want to interact with the program");
+					})
+				]) : null;
+
 				this.run.runningTest=i;
 				this.upRun();
 
@@ -806,15 +814,9 @@ export class TestCases {
 					this.upRun();
 				}});
 
-				if (this.cfg.focusTestIO) {
+				if (panelReady) {
 					await commands.executeCommand("cpu.panel.focus");
-					await Promise.race([
-						new Promise(res=>this.onPanelReady(res)),
-						cancelPromise(cancel.token),
-						delay(5000).then(()=>{
-							throw new Error("Test I/O panel did not open. Disable focus test I/O if you don't want to interact with the program");
-						})
-					]);
+					await panelReady;
 				}
 
 				const res = await this.runner.run(test);
