@@ -40,6 +40,7 @@ export type LanguagesConfig = Record<string,LanguageConfig>;
 export abstract class Language {
 	abstract name: string;
 	stopOnDebug: boolean=false;
+	compileExt?: string;
 	abstract exts: string[];
 
 	protected get cfg(): LanguageConfig { return this.cfgs[this.name]; }
@@ -127,10 +128,18 @@ async function nativeDebugConfiguration(provider: LanguageProvider, prog: string
 	}
 }
 
-class CPP extends Language {
+abstract class NativeLanguage extends Language {
+	stopOnDebug=true;
+	compileExt = process.platform=="win32" ? "exe" : undefined;
+
+	debug=async ({pid, prog}: LanguageDebugOpts) => {
+		return nativeDebugConfiguration(this.provider, prog, pid);
+	};
+}
+
+class CPP extends NativeLanguage {
 	compiler: string|null=null;
 	name="c++";
-	stopOnDebug=true;
 	exts=["cpp","cxx","cc","c++"];
 
 	async getCompiler() {
@@ -175,10 +184,6 @@ class CPP extends Language {
 			...testlib ? ["-isystem", join(extPath, "testlib")] : [],
 			"-o", prog, ...this.getArgs(type)
 		];
-	};
-
-	debug=async ({pid, prog}: LanguageDebugOpts) => {
-		return nativeDebugConfiguration(this.provider, prog, pid);
 	};
 }
 
@@ -263,17 +268,12 @@ class Python extends Language {
 
 //UNTESTED
 //sory im lazy
-class Rust extends Language {
+class Rust extends NativeLanguage {
 	name="rust";
 	exts=["rs"];
-	stopOnDebug=true;
 
 	compile=async ({prog, source, type}: LanguageCompileOpts): Promise<string[]> => {
 		return [this.cfg.compiler ?? "rustc", source, "-o", prog, ...this.getArgs(type)];
-	};
-
-	debug=async ({pid, prog}: LanguageDebugOpts) => {
-		return nativeDebugConfiguration(this.provider, prog, pid);
 	};
 }
 

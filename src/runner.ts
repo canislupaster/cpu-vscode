@@ -245,7 +245,7 @@ export class Runner {
 		language.compileHash(hash, type);
 
 		const hashStr = hash.digest().toString("hex");
-		const path = join(buildDir, process.platform=="win32" ? `${hashStr}.exe` : hashStr);
+		const path = join(buildDir, language.compileExt ? `${hashStr}.${language.compileExt}` : hashStr);
 
 		if (hashStr in this.activeCompilations)
 			await this.activeCompilations[hashStr];
