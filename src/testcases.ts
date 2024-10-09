@@ -287,7 +287,7 @@ export class TestCases {
 		};
 
 		for (const {input,output} of tests) {
-			const {inFile, ansFile} = await this.nextTestFile("test", data.nextId, setId);
+			const {inFile, ansFile} = await this.nextTestFile("test", data.nextId+1, setId);
 			await writeFile(inFile, input);
 			await writeFile(ansFile, output);
 			data.cases[data.nextId] = this.makeTestCase(`Test ${data.nextId+1}`,true,inFile,ansFile);

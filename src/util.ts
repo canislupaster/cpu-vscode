@@ -1,6 +1,6 @@
 import { stat } from "node:fs/promises";
 import { WebviewViewProvider, Event, WebviewView, CancellationToken, Uri, WebviewPanel, CancellationError } from "vscode";
-import { InitState, MessageFromExt, MessageToExt } from "./shared";
+import { InitState, MessageFromExt, MessageToExt, SetStateMessage } from "./shared";
 import App from "./main";
 import { parse } from "shell-quote";
 import { createServer } from "node:net";
@@ -69,6 +69,8 @@ export class CPUWebviewProvider implements WebviewViewProvider {
 		const uri = (x: string,resource=false)=>
 			webview.asWebviewUri(Uri.joinPath(this.app!.ctx.extensionUri, resource ? "resources" : outDir, x)).toString();
 
+		const uiStateKey = `${this.src}-webviewState`;
+
 		webview.html = `<!DOCTYPE html>
 <html lang="en" >
 <head>
@@ -91,6 +93,7 @@ export class CPUWebviewProvider implements WebviewViewProvider {
 	<link rel="stylesheet" href="${uri("output.css")}" />
 	<script>
 		const init = ${JSON.stringify(init)};
+		let uiState=${JSON.stringify(this.app.ctx.globalState.get(uiStateKey))};
 	</script>
 	<script src="${uri(`${this.src}.js`)}" ></script>
 </head>
@@ -99,7 +102,11 @@ export class CPUWebviewProvider implements WebviewViewProvider {
 </body>
 </html>`;
 		
-		const recvSub = webview.onDidReceiveMessage((x)=>this.app!.handleMsg(x as MessageToExt));
+		const recvSub = webview.onDidReceiveMessage((x: MessageToExt|SetStateMessage)=>{
+			if (x.type=="setUIState") this.app!.ctx.globalState.update(uiStateKey, x.newState);
+			else this.app!.handleMsg(x);
+		});
+
 		onDidDispose(()=>{
 			sendSub.dispose(); recvSub.dispose()
 		});

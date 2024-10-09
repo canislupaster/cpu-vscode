@@ -63,7 +63,8 @@ function kill(pid: number) {
 }
 
 type Program = {
-	dispose: ()=>void, write: (s: string)=>void, resume: ()=>void,
+	dispose: ()=>void, write: (s: string)=>void,
+	resume: (type: "program"|"stdin")=>void,
 	exitCode: number|null, pid: number|null, closed: boolean,
 	closePromise: Promise<void>, spawnPromise: Promise<number>,
 	stdin: Writable, stdout: Readable
@@ -136,13 +137,12 @@ async function startChildProgram({
 		closed: false,
 		pid: null,
 		stdin: cp.stdin, stdout: cp.stdout,
-		resume() {
+		resume(type: "program"|"stdin") {
 			if (!doStop || cp.pid==null) return;
 
-			if (process.platform!="win32" && !cp.kill("SIGCONT"))
+			if (type=="stdin") handleStdin();
+			else if (process.platform!="win32" && !cp.kill("SIGCONT"))
 				throw runerr("Couldn't resume process");
-
-			handleStdin();
 		},
 		dispose() {
 			if (!this.closed && this.pid!=null && !kill(this.pid))
@@ -480,14 +480,19 @@ export class Runner {
 					return null;
 				}
 
+				// codelldb like this here -- the above promise is resolved when process is ready to resume, and once it has the session starts
+				// if i do this after receiving start session event, sometimes it takes an extra few seconds
+				(dbg=="interactor" ? interactorProg! : cp).resume("program");
+
 				await Promise.race([
 					debugStartPromise,
 					timeout(10000, "Debug session did not start"),
 					cancelPromise
 				]);
 
-				if (dbg=="interactor") interactorProg!.resume();
-				else cp.resume();
+				// ive split this here so non-codelldb users can at least have a chance at sane debugging
+				// i.e. hopefully the debugger is slightly more ready at this point, given that i've waited for the session to start (in practice doesn't really work)
+				(dbg=="interactor" ? interactorProg! : cp).resume("stdin");
 			}
 
 			void (async () => {

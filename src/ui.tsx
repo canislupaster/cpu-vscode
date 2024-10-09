@@ -6,7 +6,7 @@ import { Spinner, SpinnerProps } from "@nextui-org/spinner";
 import React, { AnchorHTMLAttributes, createContext, forwardRef, HTMLAttributes, PointerEvent, useContext, useEffect, useRef, useState } from "react";
 import { Tooltip, TooltipPlacement } from "@nextui-org/tooltip";
 import { NextUIProvider } from "@nextui-org/system";
-import { InitState, MessageFromExt, MessageToExt, TestResult, Theme } from "./shared";
+import { InitState, MessageFromExt, MessageToExt, SetStateMessage, TestResult, Theme } from "./shared";
 import ReactSelect, { ClassNamesConfig } from "react-select";
 import { createRoot } from "react-dom/client";
 import { animations, handleDragstart, handleEnd, ParentConfig, performSort, } from "@formkit/drag-and-drop";
@@ -144,6 +144,7 @@ export const Select = (props: React.ComponentProps<ReactSelect>) =>
 	<ReactSelect unstyled classNames={selectStyle} styles={{ menu: base => ({ ...base, zIndex: 50 }) }} {...props} />;
 
 export type DropdownPart = ({type: "txt", txt?: React.ReactNode}
+	| {type: "big", txt?: React.ReactNode}
 	| { type: "act", name?: React.ReactNode, act: ()=>void,
 			disabled?: boolean, active?: boolean })&{key?: string|number};
 
@@ -161,20 +162,25 @@ export function Dropdown({parts, trigger, onOpenChange}: {trigger?: React.ReactN
 			onOpenChange?.(x);
 		}} triggerScaleOnOpen={false} portalContainer={ctx.rootRef.current!} >
 		<PopoverTrigger><div>{trigger}</div></PopoverTrigger>
-		<PopoverContent className="rounded-md bg-zinc-900 dark:bg-zinc-900 bg-zinc-100 border-gray-800 dark:border-gray-800 border-zinc-300 px-0 py-0 max-w-60 max-h-80 overflow-y-auto justify-start" >
+		<PopoverContent className="rounded-md dark:bg-zinc-900 bg-zinc-100 dark:border-gray-800 border-zinc-300 px-0 py-0 max-w-60 overflow-y-auto justify-start max-h-[min(90dvh,30rem)]" >
 			<div>
 				{parts.map((x,i) => {
 					if (x.type=="act")
 						return <Button key={x.key ?? i} disabled={x.disabled}
-							className={`m-0 border-zinc-700 dark:border-zinc-700 border-zinc-300 border-t-0 first:border-t rounded-none first:rounded-t-md last:rounded-b-md hover:bg-zinc-700 dark:hover:bg-zinc-700 hover:bg-zinc-300 w-full active:border-1 ${
-								x.active ? "bg-zinc-950 dark:bg-zinc-950 bg-zinc-200" : ""
+							className={`m-0 dark:border-zinc-700 border-zinc-300 border-t-0 first:border-t rounded-none first:rounded-t-md last:rounded-b-md dark:hover:bg-zinc-700 hover:bg-zinc-300 w-full hover:border-1 active:border-1 ${
+								x.active ? "dark:bg-zinc-950 bg-zinc-200" : ""
 							}`}
 							onClick={() => {
 								x.act();
 								setOpen(false);
+								onOpenChange?.(false);
 							}} >{x.name}</Button>;
+					else if (x.type=="txt") return <div key={x.key ?? i}
+						className="flex flex-row justify-center gap-4 dark:bg-zinc-900 bg-zinc-100 items-center border m-0 dark:border-zinc-700 border-zinc-300 border-t-0 first:border-t rounded-none first:rounded-t-md last:rounded-b-md w-full" >
+							{x.txt}
+						</div>
 					else return <div key={x.key ?? i}
-						className="flex flex-row justify-center gap-4 bg-zinc-900 dark:bg-zinc-900 bg-zinc-100 items-center border m-0 border-zinc-700 dark:border-zinc-700 border-zinc-300 border-t-0 first:border-t rounded-none first:rounded-t-md last:rounded-b-md w-full" >
+						className="flex flex-row justify-start gap-4 p-2 dark:bg-zinc-900 bg-zinc-100 items-center border m-0 dark:border-zinc-700 border-zinc-300 border-t-0 first:border-t rounded-none first:rounded-t-md last:rounded-b-md w-full" >
 							{x.txt}
 						</div>
 				})}
@@ -360,7 +366,7 @@ export function FileName({path, children, ...props}: {path: string}&Partial<Reac
 		<div className="max-w-full break-words dark:text-gray-300 text-gray-500 px-2" >
 			Full path: {path}
 		</div>
-		<div className="flex flex-col gap-2 w-full" >
+		<div className="flex flex-col gap-2 w-full xs:flex-row xs:justify-start" >
 			<Button onClick={()=>send({type:"openFile",path})} >Open in VSCode</Button>
 			<Button onClick={()=>send({type:"openFile",path,inOS:true})} >Reveal in Explorer/Finder</Button>
 		</div>
@@ -398,25 +404,23 @@ export function dragTCs(init: number[], cfg?: ParentConfig<number>): [number[], 
 	return [vs,parent,dragging];
 }
 
-type UIState = { diff: boolean };
-const defaultUIState: UIState = {diff: false};
-
-type VSCodeAPI = {
-	postMessage: (msg: MessageToExt) => void,
-	getState: ()=>UIState|undefined,
-	setState: (x: UIState)=>void
-};
+type VSCodeAPI = { postMessage: (msg: MessageToExt|SetStateMessage) => void };
 
 declare const acquireVsCodeApi: ()=>VSCodeAPI;
 const vscode = acquireVsCodeApi();
+declare let uiState: object|undefined;
 
 export const send = vscode.postMessage;
-export let uiState = vscode.getState() ?? defaultUIState;
 
-export function setUiState(update: Partial<UIState>) {
-	uiState={...uiState, ...update};
-	vscode.setState(uiState);
-}
+export const useUIState = <T extends object>(defaultUIState: T) => ({
+	uiState: (): T => ({...defaultUIState, ...uiState ?? {}}),
+	update(x: Partial<T>) {
+		const ns: T = {...defaultUIState, ...uiState ?? {}, ...x};
+		uiState=ns;
+		send({type: "setUIState", newState: ns});
+		return ns;
+	}
+});
 
 export function render(component: React.FunctionComponent) {
 	window.addEventListener("DOMContentLoaded", ()=>

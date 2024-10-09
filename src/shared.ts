@@ -106,6 +106,8 @@ export type MessageToExt = {
 	type: "panelReady"
 };
 
+export type SetStateMessage = {type: "setUIState", newState: object};
+
 export type TestResult = {
 	verdict: "AC"|"RE"|"TL"|"ML"|"WA"|"INT",
 	wallTime: number|null, cpuTime: number|null,

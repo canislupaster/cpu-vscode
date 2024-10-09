@@ -1,7 +1,7 @@
 //ok fuck esbuild is so crappy or something, react needs to be included for <></> to work
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { RunState, TestCase, testErr, TestOut, TestResult, TestSets, Theme } from "./shared";
-import { IconButton, send, useMessage, Text, Icon, Button, Card, Textarea, verdictColor, FileName, Alert, HiddenInput, Dropdown, DropdownPart, Input, toSearchString, Anchor, setUiState, uiState, appInit, bgColor, useTheme } from "./ui";
+import { IconButton, send, useMessage, Text, Icon, Button, Card, Textarea, verdictColor, FileName, Alert, HiddenInput, Dropdown, DropdownPart, Input, toSearchString, Anchor, appInit, bgColor, useTheme, textColor, useUIState } from "./ui";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
 import { crosshairCursor, drawSelection, dropCursor, EditorView, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers, rectangularSelection, ViewUpdate } from "@codemirror/view";
@@ -112,17 +112,17 @@ const mainTheme = (err: boolean, theme: Theme) => EditorView.theme({
 		"borderLeftColor": theme=="dark" ? "#c6c6c6" : "#4b5563"
 	},
 	".cm-activeLine": {
-		"backgroundColor": theme=="dark" ? "#ffffff0f" : "#edeff0"
+		"backgroundColor": theme=="dark" ? "#ffffff0f" : "#99999926"
 	},
 	".cm-activeLineGutter": {
 		"color": theme=="dark" ? "#c7c5c3" : "#000",
-		"backgroundColor": theme=="dark" ? "#ffffff0f" : "#edeff0"
+		"backgroundColor": theme=="dark" ? "#ffffff0f" : "#99999926"
 	},
 	"&.cm-focused .cm-selectionBackground, & .cm-line::selection, & .cm-selectionLayer .cm-selectionBackground, .cm-content ::selection": {
-		"background": theme=="dark" ? "#6199ff2f !important" : "#bfdbfe !important"
+		"background": theme=="dark" ? "#6199ff2f !important" : "#add6ff !important"
 	},
 	"& .cm-selectionMatch": {
-		"backgroundColor": theme=="dark" ? "#72a1ff59" : "#93c5fd59"
+		"backgroundColor": theme=="dark" ? "#72a1ff59" : "#a8ac94"
 	}
 }, { dark: theme=="dark" });
 
@@ -199,12 +199,13 @@ export function CMReadOnly({v, err, original}: {v: string, err?: boolean, origin
 }
 
 const DiffContext = createContext<{isDiff: boolean, setDiff: (x: boolean)=>void}>({isDiff: false, setDiff: ()=>{}})
-
+const diffState = useUIState({diff: false});
 export function DiffContextProvider({children}: {children: React.ReactNode}) {
-	const [isDiff, setDiff] = useState(uiState.diff);
+	const [isDiff, setDiff] = useState(()=>diffState.uiState().diff)
+
 	return <DiffContext.Provider value={{isDiff, setDiff: (nd) => {
 		setDiff(nd);
-		setUiState({diff: nd});
+		diffState.update({diff: nd});
 	}}} >
 		{children}
 	</DiffContext.Provider>;
@@ -253,7 +254,7 @@ export const TestCaseOutput = React.memo(({i, test, useCard, answer}: {i: number
 		{out.judge && <div>
 			<Text v="lg" >Checker output</Text>
 			<Textarea value={out.judge} readOnly className={`font-mono min-h-20 ${bgColor.secondary} mt-2 ${test.lastRun?.verdict!=null
-				? verdictColor[test.lastRun.verdict].text : "dark:text-lime-400 text-lime-700"} ${bgColor.default}`} rows={2} />
+				? verdictColor[test.lastRun.verdict].text : textColor.green}`} rows={2} />
 		</div>}
 	</>;
 
@@ -398,7 +399,7 @@ export const TestSetStatus = React.memo(({testSets, currentTestSet}: {
 
 	return <Card className="flex flex-col sm:flex-row sm:gap-6 flex-wrap items-stretch md:items-center" >
 		<div className="flex flex-col gap-1 items-center" >
-			<div className="flex flex-row justify-between gap-2 px-2 self-stretch" >
+			<div className="flex flex-row justify-between gap-2 px-2 self-stretch items-center" >
 				{prev!=null && <IconButton icon={<Icon icon="chevron-left" />}
 					onClick={()=>send({type:"switchTestSet", i: prev})} />}
 

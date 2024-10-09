@@ -5,6 +5,8 @@
 ![Visual Studio Marketplace Last Updated](https://img.shields.io/visual-studio-marketplace/last-updated/thomasqm.cpu)
 ![Static Badge](https://img.shields.io/badge/MIT%20-%20license)
 
+### [website](https://purduecpu.com/extension) / [visual studio marketplace](https://marketplace.visualstudio.com/items?itemName=thomasqm.cpu) / [github](https://github.com/canislupaster/cpu-vscode) / [codeforces blog](https://codeforces.com/blog/entry/134677)
+
 # What's this, another CPH/acmX/FastOlympicCoding/... clone?
 
 Yep. I think it looks *slightly* better than any solution out there, though, and has maybe one more feature?
