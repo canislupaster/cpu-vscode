@@ -102,8 +102,8 @@ export default class App {
 
 	send(x:MessageFromExt) { this.onMessageSource.fire(x); };
 
-	updateProgram() {
-		if (this.openFile!=null)
+	updateProgram(load: boolean) {
+		if (this.openFile!=null && load)
 			this.cases.runner.loadFile(this.openFile.path).catch(e=>this.handleErr(e));
 		this.send({type:"updateProgram", openFile: this.openFile});
 	}
@@ -115,7 +115,7 @@ export default class App {
 
 			if (this.cases.runner.languages.allExts.some(x=>ext.endsWith(x))) {
 				this.openFile={type:"last",path:resolve(e.document.fileName)};
-				this.updateProgram();
+				this.updateProgram(false);
 			}
 		}
 	}
@@ -152,7 +152,7 @@ export default class App {
 			this.openFile.type="file";
 		}
 
-		this.updateProgram();
+		this.updateProgram(true);
 	}
 
 	async pickTest() {
@@ -201,14 +201,16 @@ export default class App {
 					sets: {...this.ts.sets, ...sets.sets, [this.ts.current]: this.ts.sets[this.ts.current] }
 				};
 
-				if (newCurrent && (newCurrent.mod??0)>Math.max(this.lastFocus, this.ts.sets[this.ts.current].mod??0)) {
+				const oldFocus = this.lastFocus;
+				this.lastFocus=Date.now();
+
+				if (newCurrent && (newCurrent.mod??0)>Math.max(oldFocus, this.ts.sets[this.ts.current].mod??0)) {
 					if (await window.showInformationMessage("Your current testset has changed in another window. Load changes?", "Reload testset") == "Reload testset") {
 						this.ts.sets[this.ts.current] = newCurrent;
 						await this.cases.loadTestSet(this.ts.current, false);
 					}
 				}
 
-				this.lastFocus=Date.now();
 				await this.upTestSet(false);
 			})().catch(e=>this.handleErr(e));
 		}));
@@ -264,7 +266,7 @@ export default class App {
 			if (this.openFile?.type=="last" && e.uri.scheme=="file"
 				&& this.openFile.path==resolve(e.fileName)) {
 
-				this.updateProgram();
+				this.updateProgram(false);
 			}
 		}));
 

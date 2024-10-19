@@ -41,6 +41,7 @@ export abstract class Language {
 	abstract name: string;
 	stopOnDebug: boolean=false;
 	compileExt?: string;
+	compileProblemMatcher?: string;
 	abstract exts: string[];
 
 	protected get cfg(): LanguageConfig { return this.cfgs[this.name]; }
@@ -141,6 +142,7 @@ class CPP extends NativeLanguage {
 	compiler: string|null=null;
 	name="c++";
 	exts=["cpp","cxx","cc","c++"];
+	compileProblemMatcher="$gcc";
 
 	async getCompiler() {
 		if (this.cfg.compiler!=undefined) this.compiler=this.cfg.compiler;
@@ -229,6 +231,7 @@ class Python extends Language {
 	exts=["py"];
 	runtime: string|null=null;
 	debugPort=5679;
+	compileProblemMatcher="$python";
 
 	run=async ({prog, dbg}: LanguageRunOpts): Promise<string[]> => {
 		if (this.cfg.runtime!=undefined) this.runtime=this.cfg.runtime;
@@ -271,6 +274,7 @@ class Python extends Language {
 class Rust extends NativeLanguage {
 	name="rust";
 	exts=["rs"];
+	compileProblemMatcher="$rustc";
 
 	compile=async ({prog, source, type}: LanguageCompileOpts): Promise<string[]> => {
 		return [this.cfg.compiler ?? "rustc", source, "-o", prog, ...this.getArgs(type)];

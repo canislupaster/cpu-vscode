@@ -289,7 +289,8 @@ export class Runner {
 
 			const name = basename(file);
 			const task = new Task({ type: "process" }, TaskScope.Workspace,
-				`Compiling ${name}`, "Competitive Programming", proc, ["$gcc"]);
+				`Compiling ${name}`, "Competitive Programming", proc,
+				language.compileProblemMatcher ? [language.compileProblemMatcher] : []);
 
 			const prom = new Promise<number|undefined>((res) => tasks.onDidEndTaskProcess((e) => {
 				if (e.execution.task==task) {
