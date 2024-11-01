@@ -50,7 +50,7 @@ export function useTestCases() {
 	const [run, setRun] = useState<RunState>(appInit.run);
 
 	const [state, setState] = useState({
-		...appInit, cases: undefined, order: undefined, run: undefined, focusOpenTest: false,
+		...appInit, cases: undefined, order: undefined, run: undefined, focusOpenTest: true
 	});
 
 	useMessage((msg) => {
@@ -68,6 +68,7 @@ export function useTestCases() {
 				return newTcs;
 			}); break;
 
+			case "updateRunCfg": setState(s=>({...s, runCfg: msg.cfg})); break;
 			case "updateCfg": setState(s=>({...s, cfg: msg.cfg})); break;
 			case "updateCheckers": setState(s=>({...s, checkers: msg.checkers})); break;
 			case "openTest": setState(s=>({...s, openTest: msg.i, focusOpenTest: msg.focus})); break;
@@ -167,6 +168,34 @@ export const exts = ({type, onc, theme}: EditorType&{onc?: (x: ViewUpdate)=>void
 	] : []
 ];
 
+const oldExecCmd = document.execCommand.bind(document);
+const editors = new Set<Element>();
+
+document.execCommand = (cmd, ...args) => {
+	const el = document.activeElement;
+	if (el && editors.has(el)) {
+		if (cmd=="paste") {
+			navigator.clipboard.readText().then(txt => {
+				const dt = new DataTransfer();
+				dt.setData("text/plain", txt);
+				el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt }));
+			}).catch(console.error);
+
+			return true;
+		} else if (cmd=="cut" || cmd=="copy") {
+			const dt = new DataTransfer();
+			el.dispatchEvent(new ClipboardEvent(cmd, { clipboardData: dt }));
+
+			const text = dt.getData("text/plain");
+			if (text) void navigator.clipboard.writeText(text);
+
+			return true;
+		}
+	}
+
+	return oldExecCmd(cmd, ...args);
+};
+
 export function CMReadOnly({v, err, original}: {v: string, err?: boolean, original?: string}) {
 	const [editor, setEditor] = useState<EditorView|null>(null);
 	const cmDiv = useRef<HTMLDivElement>(null);
@@ -186,8 +215,14 @@ export function CMReadOnly({v, err, original}: {v: string, err?: boolean, origin
 			],
 		});
 
+		const content = edit.contentDOM;
+		editors.add(content);
+
 		setEditor(edit);
-		return () => edit.destroy();
+		return () => {
+			edit.destroy();
+			editors.delete(content);
+		};
 	}, [original, theme]);
 
 	useEffect(()=>{
@@ -286,8 +321,14 @@ function TestCaseFileEditor({i,which,source}:TestCaseFileProps&{path:string,sour
 			}})
 		});
 
+		const content = edit.contentDOM;
+		editors.add(content);
+
 		setEditor(edit);
-		return () => edit.destroy();
+		return () => {
+			edit.destroy();
+			editors.delete(content);
+		};
 	}, [theme]);
 
 	useEffect(()=>{
@@ -362,19 +403,25 @@ export const TestCaseFile = React.memo(({i, which, path, source}: TestCaseFilePr
 //mounted in popover
 //if it focuses too soon, then popover has not measured itself yet and we scroll to a random ass place
 //what the fuck.
-function LazyAutoFocusSearch({search,setSearch}:{search: string, setSearch: (x:string)=>void}) {
+function LazyAutoFocusSearch({search,setSearch,onSubmit}:{
+	search: string, setSearch: (x:string)=>void, onSubmit?: ()=>void
+}) {
 	const ref = useRef<HTMLInputElement>(null);
 
 	useEffect(()=>{
 		const t = setTimeout(()=>ref.current?.focus(), 50);
 		return ()=>clearTimeout(t);
-	});
+	}, []);
 
-	return <Input placeholder="Search..." ref={ref}
-		className="rounded-b-none rounded-t-md"
-		value={search} onChange={(ev) => {
-			setSearch(ev.target.value)
-		}} />;
+	return <form onSubmit={(ev)=>{
+		onSubmit?.(); ev.preventDefault();
+	}} className="contents"  >
+		<Input placeholder="Search..." ref={ref}
+			className="rounded-b-none rounded-t-md"
+			value={search} onChange={(ev) => {
+				setSearch(ev.target.value)
+			}} />
+	</form>;
 }
 
 export const TestSetStatus = React.memo(({testSets, currentTestSet}: {
@@ -385,17 +432,22 @@ export const TestSetStatus = React.memo(({testSets, currentTestSet}: {
 		search=="" || toSearchString(v.name).includes(toSearchString(search))
 	).map(([k,v]): DropdownPart => {
 		const ki = Number(k);
-		return {type: "act", key: ki, name: <>
+		return {
+			type: "act", key: ki, name: <>
 				{v.group && <Icon icon="cloud-download" />}{v.name}
-			</>, active: ki==currentTestSet, act(){
-			if (currentTestSet!=ki) send({type: "switchTestSet", i: ki});
-		}};
+			</>, active: ki==currentTestSet, act() {
+				if (currentTestSet!=ki) send({type: "switchTestSet", i: ki});
+			}
+		};
 	});
 
 	const cur = testSets[currentTestSet];
 
 	const prev = cur.prev!=undefined && cur.prev in testSets ? cur.prev : null;
 	const nxt = cur.next!=undefined && cur.next in testSets ? cur.next : null;
+
+	const [open, setOpen] = useState(false);
+	useEffect(()=>setSearch(""), [open]);
 
 	return <Card className="flex flex-col sm:flex-row sm:gap-6 flex-wrap items-stretch md:items-center" >
 		<div className="flex flex-col gap-1 items-center" >
@@ -429,12 +481,16 @@ export const TestSetStatus = React.memo(({testSets, currentTestSet}: {
 					onClick={()=>send({type:"deleteTestSet", i: currentTestSet})}
 					className={bgColor.rose} >Delete</Button>
 
-				<Dropdown trigger={
+				<Dropdown open={open} setOpen={setOpen} trigger={
 					<Button icon={<Icon icon="arrow-swap" />} >Switch</Button>
 				} parts={[
 					{
 						type: "txt",
-						txt: <LazyAutoFocusSearch search={search} setSearch={setSearch} />,
+						txt: <LazyAutoFocusSearch search={search} setSearch={setSearch} onSubmit={()=>{
+							if (sets.length==1 && sets[0].type=="act") {
+								sets[0].act(); setOpen(false);
+							}
+						}} />,
 						key: "search"
 					},
 					...sets
@@ -447,17 +503,19 @@ export const TestSetStatus = React.memo(({testSets, currentTestSet}: {
 });
 
 export function SetProgram({tc}: {tc: ReturnType<typeof useTestCases>}) {
-	return <Card className="flex flex-col sm:flex-row sm:gap-6 flex-wrap items-center" >
-		<div className="flex flex-row gap-2 items-center justify-center" >
+	return <Card className="flex flex-col sm:flex-row gap-x-6 gap-y-1 flex-wrap items-center" >
+		<div className="flex flex-row gap-2 items-center justify-center flex-wrap gap-y-0" >
 			<Text v="bold" >Active program:</Text>
 			{tc.openFile!=null ? <FileName path={tc.openFile.path} /> : <Text v="err" >none set</Text>}
 		</div>
 		<div className="flex flex-row gap-2 items-center justify-center" >
-			<Button className="min-w-40" onClick={()=>{
-				send({type:"setProgram", cmd:tc.openFile==null ? "open" : "clear"});
-			}} >{tc.openFile==null ? "Choose program" : "Clear"}</Button>
-			{tc.openFile!=null && tc.openFile.type=="last" &&
-				<IconButton icon={<Icon icon="pinned" />} onClick={()=>send({type:"setProgram", cmd:"setLast"})} />}
+			<Button className="min-w-40" onClick={()=>send({type:"setProgram", cmd:"open"})} >
+				Choose program
+			</Button>
+
+			{tc.openFile!=null && (tc.openFile.type=="last" ?
+				<IconButton icon={<Icon icon="pin" />} onClick={()=>send({type:"setProgram", cmd:"setLast"})} />
+				: <IconButton icon={<Icon icon="pinned" />} className={bgColor.secondary} onClick={()=>send({type:"setProgram", cmd:"clear"})} />)}
 		</div>
 	</Card>;
 }

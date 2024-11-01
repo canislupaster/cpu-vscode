@@ -16,12 +16,24 @@ export type RunCfg = {
 	interactor: string|null,
 	eof: boolean,
 	focusTestIO: boolean,
-	nProcs: number
 };
+
+export const runKeys = ["tl", "ml", "eof", "focusTestIO", "checker", "interactor", "fileIO"] as const;
+
+export type Cfg = {
+	createFiles: boolean,
+	createFileName: string,
+	createFileTemplate?: string,
+	nProcs: number,
+	testDir?: string,
+	buildDir?: string
+};
+
+export const cfgKeys = ["createFiles", "createFileName", "createFileTemplate", "nProcs", "testDir", "buildDir"] as const;
 
 export const defaultRunCfg: RunCfg = {
 	tl: 10, ml: 512, eof: false, focusTestIO: true,
-	checker: null, interactor: null, fileIO: null, nProcs: 20
+	checker: null, interactor: null, fileIO: null
 };
 
 export type RunType = "normal"|"stress"|"generator"|"runInteractor";
@@ -51,10 +63,14 @@ export type MessageToExt = {
 	checker: string|null
 } | {
 	type: "setInteractor",
-	clear: boolean
+	path: string|null
+} | {
+	type: "setRunCfg",
+	cfg: RunCfg
 } | {
 	type: "setCfg",
-	cfg: RunCfg
+	cfg: Cfg,
+	global: boolean
 } | {
 	type: "readSource", i: number
 } | {
@@ -90,7 +106,8 @@ export type MessageToExt = {
 	name?: string,
 	stress: Omit<Stress,"status">
 } | {
-	type: "chooseSourceFile", key: string, name: string
+	type: "chooseFile", key: string, name: string,
+	kind: "source"|"directory"
 } | {
 	type: "clearCompileCache"
 } | {
@@ -100,7 +117,7 @@ export type MessageToExt = {
 } | {
 	type: "setLanguageCfg",
 	language: string, cfg: Partial<LanguageConfig>
-}| {
+} | {
 	type: "setLanguageCfgGlobally", language: string
 } | {
 	type: "panelReady"
@@ -178,7 +195,8 @@ export type Theme = "light"|"dark";
 
 export type InitState = {
 	cases: Record<number,TestCase>,
-	cfg: RunCfg,
+	cfg: Cfg,
+	runCfg: RunCfg,
 	languagesCfg: LanguagesConfig,
 	checkers: string[],
 	openTest?: number,
@@ -205,8 +223,11 @@ export type MessageFromExt = {
 	type: "updateCheckers",
 	checkers: string[]
 } | {
-	type: "updateCfg",
+	type: "updateRunCfg",
 	cfg: RunCfg
+} | {
+	type: "updateCfg",
+	cfg: Cfg
 } | {
 	type: "updateLanguagesCfg",
 	cfg: LanguagesConfig
@@ -234,7 +255,7 @@ export type MessageFromExt = {
 	current: number,
 	sets: TestSets
 } | {
-	type: "sourceFileChosen", key: string, path: string
+	type: "fileChosen", key: string, path: string
 } | {
 	type: "themeChange", newTheme: Theme
 };

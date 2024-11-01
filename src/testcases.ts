@@ -1,10 +1,11 @@
-import { badVerdicts, CompileError, defaultRunCfg, MessageFromExt, RunCfg, RunError, RunState, RunType, Stress, TestCase, TestOut, TestResult } from "./shared";
-import { ExtensionContext, window, LogOutputChannel, EventEmitter, OpenDialogOptions, Disposable, CancellationToken, CancellationTokenSource, CancellationError, ProgressLocation, commands, workspace, Event } from "vscode";
+import { badVerdicts, Cfg, CompileError, defaultRunCfg, MessageFromExt, RunCfg, RunError, RunState, RunType, Stress, TestCase, TestOut, TestResult } from "./shared";
+import { ExtensionContext, window, LogOutputChannel, EventEmitter, OpenDialogOptions, Disposable, CancellationToken, CancellationTokenSource, CancellationError, ProgressLocation, commands, Event } from "vscode";
 import { CompileResult, Runner, Test } from "./runner";
 import { cancelPromise, delay, exists } from "./util";
 import { basename, extname, join, resolve } from "node:path";
 import { mkdir, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { createReadStream } from "node:fs";
+import { LanguageProvider } from "./languages";
 
 const inNames = new Set([".in"]), ansNames = new Set([".out", ".ans"]);
 const testCaseFilter: OpenDialogOptions["filters"] = {
@@ -33,6 +34,7 @@ type TestSetData = {
 	cases: Record<number, Omit<TestCase,"cancellable">>,
 	runAll: Omit<RunState["runAll"],"cancellable">,
 	order: number[],
+	file?: string|null,
 	runCfg: RunCfg|null,
 	nextId: number
 };
@@ -49,6 +51,7 @@ export class TestCases {
 	inputs: Record<number, EventEmitter<string>> = {};
 	outputs: Record<number, TestOut> = {};
 	id: number=0;
+	file: string|null=null;
 
 	runner: Runner;
 
@@ -72,7 +75,7 @@ export class TestCases {
 	}
 
 	upCfg() {
-		this.send({type: "updateCfg", cfg: this.cfg});
+		this.send({type: "updateRunCfg", cfg: this.cfg});
 		this.ctx.workspaceState.update("runcfg", this.cfg);
 		this.saveSoon();
 	}
@@ -80,7 +83,7 @@ export class TestCases {
 	toTestSet=():TestSetData=>({
 		cases: Object.fromEntries(Object.entries(this.cases).map(([k,v])=>[k,v.tc])),
 		runAll: this.run.runAll,
-		order: this.order,
+		order: this.order, file: this.file,
 		runCfg: this.cfg, nextId: this.id
 	});
 
@@ -127,6 +130,7 @@ export class TestCases {
 		this.id = tests?.nextId ?? 0;
 		this.run.runAll={...tests?.runAll ?? {lastRun: null, err: null}, cancellable: null};
 		this.outputs={};
+		await this.setCurrentFile(tests?.file ?? null);
 
 		this.disableSave=true;
 
@@ -252,12 +256,10 @@ export class TestCases {
 	}
 
 	getTestsetDir() {
-		let testDir = workspace.getConfiguration("cpu.testDir").get<string>("") ?? null;
-		if (testDir && testDir.length==0) testDir=null;
-		if (this.ctx.storageUri) testDir=this.ctx.storageUri?.fsPath;
-		else if (this.ctx.globalStorageUri) testDir=this.ctx.globalStorageUri?.fsPath;
+		if (this.globalCfg.testDir) return this.globalCfg.testDir;
+		else if (this.ctx.storageUri) return this.ctx.storageUri.fsPath;
+		else if (this.ctx.globalStorageUri) return this.ctx.globalStorageUri.fsPath;
 		else throw new Error("No test directory");
-		return testDir;
 	}
 
 	async getTestDir(setId?:number) {
@@ -280,10 +282,11 @@ export class TestCases {
 		return { inFile: resolve(inP), ansFile: resolve(outP) };
 	}
 
-	async makeTestSetData(setId: number, tests: {input:string,output:string}[]) {
+	async makeTestSetData(setId: number, tests: {input:string,output:string}[], file?: string) {
 		const data: TestSetData = {
 			nextId: 0, order: tests.map((_,i)=>i),
-			runCfg: null, cases: {}, runAll: defaultRunAll
+			runCfg: null, file: file ?? null,
+			cases: {}, runAll: defaultRunAll
 		};
 
 		for (const {input,output} of tests) {
@@ -295,6 +298,12 @@ export class TestCases {
 		}
 
 		await this.ctx.globalState.update(`testset${setId}`, data);
+	}
+
+	async setCurrentFile(file: string|null) {
+		this.file=file;
+		if (file!=null) await this.runner.loadFile(file);
+		this.saveSoon();
 	}
 
 	private makeTestCase=(name: string, tmp: boolean, inFile?: string, ansFile?: string, stress?: Stress): TestCase=>({
@@ -376,11 +385,10 @@ export class TestCases {
 	//stress dir may contain name input/outputs
 	testFileTypes: TestFileType[]=["output","stress","fileIO"]
 	async getTestFile(i: number, f: TestFileType, doRm?: boolean) {
-		const bd = join(this.runner.getBuildDir(), `testset${this.setId}`);
-		const out = resolve(join(bd, f=="output" ? `test${i}.out` : `${f}${i}`));
+		const out = resolve(join(await this.getTestDir(this.setId), f=="output" ? `output${i}.out` : `${f}${i}`));
 
-		if (doRm) await rm(out, {force: true, recursive: true});
-		else await mkdir(f=="output" ? bd : out, {recursive: true});
+		if (doRm) await rm(out, {force: true, recursive: f!="output"});
+		else if (f!="output") await mkdir(out);
 
 		return out;
 	}
@@ -581,7 +589,7 @@ export class TestCases {
 					this.upRun();
 				};
 
-				let nworker = Math.min(this.cfg.nProcs, is.length);
+				let nworker = Math.min(this.globalCfg.nProcs, is.length);
 				const cp = cancelPromise(cancel.token);
 				while (lr.progress[0]<lr.progress[1]) {
 					if (nworker<=0) {
@@ -701,7 +709,7 @@ export class TestCases {
 
 					const stats: Stats = {cpuTime: null, wallTime: null, mem: null};
 
-					const nworker = Math.min(this.cfg.nProcs, stat.maxI);
+					const nworker = Math.min(this.globalCfg.nProcs, stat.maxI);
 					await Promise.all([...(new Array(nworker) as unknown[])].map(async (_,workerI)=>{
 						const workDir = join(dir, `worker${workerI}`);
 						await mkdir(workDir, {recursive: true});
@@ -863,11 +871,12 @@ export class TestCases {
 
 	constructor(private ctx: ExtensionContext, private log: LogOutputChannel,
 		private send: (x: MessageFromExt)=>void, public setId: number,
-		private onSaveTests: ()=>Promise<void>, private onPanelReady: Event<void>) {
+		private onSaveTests: ()=>Promise<void>, private onPanelReady: Event<void>,
+		languages: LanguageProvider, private globalCfg: Cfg) {
 
 		log.info("Loading test cases");
 
-		this.runner = new Runner(ctx, log);
+		this.runner = new Runner(ctx, log, languages);
 
 		const cfg = ctx.workspaceState.get<RunCfg>("runcfg");
 		if (cfg) this.cfg = cfg;
@@ -933,7 +942,6 @@ export class TestCases {
 
 	//not 100% perfect, since cancellation is async
 	dispose() {
-		this.runner.dispose();
 		this.runAllCancel.cancel?.cancel();
 		for (const c of Object.values(this.cases))
 			c?.cancel?.cancel();

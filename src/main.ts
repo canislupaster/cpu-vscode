@@ -1,9 +1,12 @@
-import { extname, resolve } from "path";
-import { ExtensionContext, LogOutputChannel, Uri, WebviewPanel, window, workspace, EventEmitter, ViewColumn, commands, OpenDialogOptions, env, ColorThemeKind } from "vscode";
-import { InitState, MessageFromExt, MessageToExt, OpenFile, TestSetMeta, TestSets, Theme } from "./shared";
+import { extname, isAbsolute, join, resolve } from "path";
+import { ExtensionContext, LogOutputChannel, Uri, WebviewPanel, window, workspace, EventEmitter, ViewColumn, commands, OpenDialogOptions, env, ColorThemeKind, WorkspaceConfiguration } from "vscode";
+import { Cfg, cfgKeys, InitState, MessageFromExt, MessageToExt, OpenFile, TestSetMeta, TestSets, Theme } from "./shared";
 import { CBError, TestCases } from "./testcases";
-import { CPUWebviewProvider } from "./util";
+import { CPUWebviewProvider, exists } from "./util";
 import { Companion } from "./companion";
+import { LanguageProvider } from "./languages";
+import { copyFile, mkdir, writeFile } from "fs/promises";
+import Mustache from "mustache";
 
 type AllTestSets = {
 	nextId: number,
@@ -11,22 +14,47 @@ type AllTestSets = {
 	sets: TestSets
 };
 
-type Command = "cpu.debug"|"cpu.run"|"cpu.runAll";
+type Command = "cpu.debug"|"cpu.run"|"cpu.runAll"|"cpu.lastRun";
+
+function loadCfg(config: WorkspaceConfiguration): Cfg {
+	const obj = Object.fromEntries(cfgKeys.map(k=>{
+		const v = config.get<Cfg[typeof k]>(k);
+		if (v==undefined) throw new Error(`Couldn't find configuration value for ${k}`);
+		return [k, v];
+	}));
+
+	for (const x of ["buildDir", "testDir", "createFileTemplate"]) {
+		if (obj[x]=="") delete obj[x];
+	}
+
+	return obj as Cfg;
+};
 
 export default class App {
+	languages: LanguageProvider;
 	cases: TestCases;
 	ts: AllTestSets;
 	deleted: Record<number,boolean> = {};
 	private openTestEditor?: WebviewPanel;
+
+	lastRunCmd: Extract<MessageToExt, {type: "runAll"|"runTestCase"}>|null = null;
 	private commandHandler: {[k in Command]: ()=>Promise<void>};
+
 	private reducers: {[k in MessageToExt["type"]]: (msg: Omit<Extract<MessageToExt, {type: k}>,"type">)=>Promise<void>};
 	private onMessageSource = new EventEmitter<MessageFromExt>();
 	onMessage = this.onMessageSource.event;
 
 	//may not actually exist, used for initializing new testeditor to selected TC
 	openTest?: number;
-	openFile: OpenFile=null;
+	currentFile: string|null=null;
 	companion: Companion;
+
+	private cfgReloadTimeout: null|NodeJS.Timeout = null;
+	private onCfgChangeSource = new EventEmitter<WorkspaceConfiguration>();
+	onCfgChange = this.onCfgChangeSource.event;
+	config=workspace.getConfiguration("cpu");
+
+	cfg: Cfg = loadCfg(this.config);
 
 	private panelReady=new EventEmitter<void>();
 
@@ -35,7 +63,7 @@ export default class App {
 	private toDispose: {dispose: ()=>void}[] = [this.panelReady, this.onMessageSource, this.testEditor];
 
 	codeFileFilter(): OpenDialogOptions["filters"] {
-		return {"Source file": this.cases.runner.languages.allExts} // 💀
+		return {"Source file": this.languages.allExts} // 💀
 	};
 
 	themeKindMap = new Map<ColorThemeKind, Theme>([
@@ -45,14 +73,19 @@ export default class App {
 		[ColorThemeKind.HighContrast, "dark"]
 	]);
 
+	openFile(): OpenFile|null {
+		return this.cases.file!=null ? {type: "file", path: this.cases.file}
+			: this.currentFile!=null ? {type: "last", path: this.currentFile} : null;
+	}
+
 	getInitState = (): InitState => ({
-		cfg: this.cases.cfg,
+		runCfg: this.cases.cfg, cfg: this.cfg,
 		cases: Object.fromEntries(Object.entries(this.cases.cases).map(([k,v])=>[k,v.tc])),
 		checkers: Object.keys(this.cases.checkers),
 		openTest: this.openTest, run: this.cases.run,
-		openFile: this.openFile, order: this.cases.order,
+		openFile: this.openFile(), order: this.cases.order,
 		testSets: this.ts.sets, currentTestSet: this.ts.current,
-		languagesCfg: this.cases.runner.languages.getLangsCfg(),
+		languagesCfg: this.languages.getLangsCfg(),
 		buildDir: this.cases.runner.getBuildDir(), testSetDir: this.cases.getTestsetDir(),
 		theme: this.themeKindMap.get(window.activeColorTheme.kind)!
 	});
@@ -102,20 +135,18 @@ export default class App {
 
 	send(x:MessageFromExt) { this.onMessageSource.fire(x); };
 
-	updateProgram(load: boolean) {
-		if (this.openFile!=null && load)
-			this.cases.runner.loadFile(this.openFile.path).catch(e=>this.handleErr(e));
-		this.send({type:"updateProgram", openFile: this.openFile});
-	}
+	updateProgram() { this.send({type: "updateProgram", openFile: this.openFile()}); }
 
 	checkActive() {
 		const e = window.activeTextEditor;
-		if (this.openFile?.type!="file" && e?.document.uri.scheme=="file") {
-			const ext = extname(e.document.uri.fsPath);
 
-			if (this.cases.runner.languages.allExts.some(x=>ext.endsWith(x))) {
-				this.openFile={type:"last",path:resolve(e.document.fileName)};
-				this.updateProgram(false);
+		if (e?.document.uri.scheme=="file") {
+			this.currentFile=resolve(e.document.fileName);
+
+			if (this.cases.file==null) {
+				const ext = extname(e.document.uri.fsPath);
+				if (this.languages.allExts.some(x=>ext.endsWith(x)))
+					this.updateProgram();
 			}
 		}
 	}
@@ -136,23 +167,23 @@ export default class App {
 			}
 			
 			await this.upTestSet();
-			await this.cases.loadTestSet(this.ts.current, false);
+			await this.loadTestSet(this.ts.current, false);
 		}
 	}
 
 	async setProgram(cmd: Extract<MessageToExt,{type:"setProgram"}>["cmd"]) {
 		if (cmd=="clear") {
-			this.openFile=null;
+			await this.cases.setCurrentFile(null);
 		} else if (cmd=="open") {
 			const u = await this.chooseSourceFile("program");
 			if (u==null) return;
 
-			this.openFile={type: "file", path: u};
-		} else if (cmd=="setLast" && this.openFile!=null) {
-			this.openFile.type="file";
+			await this.cases.setCurrentFile(u);
+		} else if (cmd=="setLast" && this.currentFile!=null) {
+			await this.cases.setCurrentFile(this.currentFile);
 		}
 
-		this.updateProgram(true);
+		this.updateProgram();
 	}
 
 	async pickTest() {
@@ -174,6 +205,27 @@ export default class App {
 		if (this.openTest==undefined) return;
 		await this.reducers.runTestCase({i: this.openTest, dbg, runType: "normal"});
 	};
+
+	async runPath() {
+		if (this.currentFile==null && this.cases.file==null) {
+			await this.setProgram("open");
+		}
+
+		const path = this.currentFile ?? this.cases.file;
+		if (path==null) return null;
+
+		await workspace.save(Uri.file(path));
+		return path;
+	}
+
+	async loadTestSet(set: number, save: boolean, open=false) {
+		await this.cases.loadTestSet(set, save);
+		this.updateProgram();
+
+		if (this.cfg.createFiles && this.cases.file!=null && open) {
+			await commands.executeCommand("vscode.open", Uri.file(this.cases.file));
+		}
+	}
 
 	lastFocus=Date.now();
 	constructor(public ctx: ExtensionContext, public log: LogOutputChannel) {
@@ -207,7 +259,7 @@ export default class App {
 				if (newCurrent && (newCurrent.mod??0)>Math.max(oldFocus, this.ts.sets[this.ts.current].mod??0)) {
 					if (await window.showInformationMessage("Your current testset has changed in another window. Load changes?", "Reload testset") == "Reload testset") {
 						this.ts.sets[this.ts.current] = newCurrent;
-						await this.cases.loadTestSet(this.ts.current, false);
+						await this.loadTestSet(this.ts.current, false);
 					}
 				}
 
@@ -215,14 +267,30 @@ export default class App {
 			})().catch(e=>this.handleErr(e));
 		}));
 
+		this.toDispose.push(workspace.onDidChangeConfiguration(() => {
+			if (this.cfgReloadTimeout!=null) clearTimeout(this.cfgReloadTimeout);
+
+			this.cfgReloadTimeout = setTimeout(()=>{
+				this.config = workspace.getConfiguration("cpu");
+				// maintain references
+				const ncfg=loadCfg(this.config);
+				for (const k of cfgKeys) {
+					(this.cfg as Record<string,unknown>)[k] = ncfg[k];
+				}
+
+				this.onCfgChangeSource.fire(this.config);
+
+				this.send({type: "updateLanguagesCfg", cfg: this.languages.getLangsCfg()});
+				this.send({type: "updateCfg", cfg: this.cfg});
+			}, 500);
+		}));
+
+		this.languages = new LanguageProvider(this.config, this.onCfgChange);
 		this.cases = new TestCases(ctx, log, (x)=>this.send(x), this.ts.current,
-			()=>this.upTestSet(), this.panelReady.event);
-		this.cases.runner.languages.onCfgChange(() => {
-			this.send({type: "updateLanguagesCfg", cfg: this.cases.runner.languages.getLangsCfg()});
-		});
+			()=>this.upTestSet(), this.panelReady.event, this.languages, this.cfg);
 
 		this.toDispose.push(
-			this.cases, workspace.onDidSaveTextDocument((e) => {
+			this.languages, this.cases, workspace.onDidSaveTextDocument((e) => {
 				if (e.uri.scheme=="file") {
 					const tc = this.cases.fileToCase.get(resolve(e.fileName));
 					if (tc) this.cases.reloadTestSource(tc.case).catch((e)=>this.handleErr(e));
@@ -241,7 +309,33 @@ export default class App {
 			const cur = id;
 			this.ts.nextId+=tasks.length;
 
-			for (const task of tasks) {
+			for (const task of await Promise.all(tasks.map(async task => {
+				if (this.cfg.createFiles) {
+					const cwd = (this.currentFile ? workspace.getWorkspaceFolder(Uri.file(this.currentFile)) : undefined) ?? workspace.workspaceFolders?.[0];
+					//really bad regex to find path segments at/after the one containing a number. works sometimes...
+					const id = task.url.match(/\/[^/]*\d(?:\d|[^/])+(?:\/.+)*$/)?.[0]?.replaceAll(/\/|\s/g,"");
+
+					const substituted = Mustache.render(this.cfg.createFileName, {
+						contest: task.group,
+						problem: task.name,
+						id
+					}).replaceAll(/[?%*:|"<>]/g, "");
+
+					if (cwd==undefined && !isAbsolute(substituted))
+						throw new Error(`No working directory for imported problem ${substituted}`);
+
+					const path = cwd?.uri.fsPath ? join(cwd.uri.fsPath, substituted) : substituted;
+					await mkdir(join(path, ".."), {recursive: true});
+					if (!await exists(path)) {
+						if (this.cfg.createFileTemplate) await copyFile(this.cfg.createFileTemplate, path);
+						else await writeFile(path, "");
+					}
+				
+					return {...task, path};
+				} else {
+					return {...task, path: undefined};
+				}
+			}))) {
 				this.ts.sets[id] = {
 					name: task.name, group: task.group,
 					mod: Date.now(), problemLink: task.url,
@@ -249,24 +343,22 @@ export default class App {
 					next: task==tasks[tasks.length-1] ? undefined : id+1
 				};
 
-				await this.cases.makeTestSetData(id, task.tests);
-
+				await this.cases.makeTestSetData(id, task.tests, task.path);
 				id++;
 			}
 
 			this.ts.current=cur;
 			await this.upTestSet();
-			await this.cases.loadTestSet(cur, true);
+			await this.loadTestSet(cur, true, true);
 		})().catch((e)=>this.handleErr(e))));
 
 		this.toDispose.push(window.onDidChangeActiveTextEditor(()=>this.checkActive()));
 		this.checkActive();
 
 		this.toDispose.push(workspace.onDidCloseTextDocument((e) => {
-			if (this.openFile?.type=="last" && e.uri.scheme=="file"
-				&& this.openFile.path==resolve(e.fileName)) {
-
-				this.updateProgram(false);
+			if (this.currentFile==resolve(e.fileName)) {
+				this.currentFile=null;
+				this.updateProgram();
 			}
 		}));
 
@@ -277,7 +369,11 @@ export default class App {
 		this.commandHandler = {
 			"cpu.debug": async () => await this.handleRunDbgCmd(true),
 			"cpu.run": async () => await this.handleRunDbgCmd(false),
-			"cpu.runAll": async () => await this.reducers.runAll({})
+			"cpu.runAll": async () => await this.reducers.runAll({}),
+			"cpu.lastRun": async () => {
+				if (this.lastRunCmd==null) window.showErrorMessage("You haven't run anything yet.")
+				else this.handleMsg(this.lastRunCmd);
+			}
 		};
 
 		for (const cmd in this.commandHandler) {
@@ -306,7 +402,7 @@ export default class App {
 
 				this.ts.sets[this.ts.nextId]={name};
 				this.ts.current=this.ts.nextId;
-				await this.cases.loadTestSet(this.ts.nextId++, true);
+				await this.loadTestSet(this.ts.nextId++, true);
 				await this.upTestSet();
 			},
 			renameTestSet: async ({name})=>{
@@ -315,18 +411,21 @@ export default class App {
 			},
 			switchTestSet: async ({i})=>{
 				this.ts.current=i;
-				await this.cases.loadTestSet(i, true);
+				await this.loadTestSet(i, true, true);
 			},
 			deleteTestSet: async ({i})=>{
 				await this.deleteTestSet(i);
 			},
 			runAll: async ()=>{
+				this.lastRunCmd = {type:"runAll"};
+
 				const is = Object.keys(this.cases.cases).map(Number);
 				if (is.length==0) throw new Error("No test cases to run");
-				if (this.openFile==null) await this.setProgram("open");
-				if (this.openFile==null) return;
 
-				await this.cases.runMany(is, this.openFile.path);
+				const file = await this.runPath();
+				if (file==null) return;
+
+				await this.cases.runMany(is, file);
 			},
 			moveTest: async ({a,b})=>{ this.cases.moveTest(a,b); },
 			importTests: async ()=>{ await this.cases.importCases(); },
@@ -338,14 +437,14 @@ export default class App {
 				this.cases.inputs[this.cases.run.runningTest].fire(inp);
 			},
 			runTestCase: async ({i, dbg, runType})=>{
-				if (this.openFile==null) await this.setProgram("open");
-				if (this.openFile==null) return;
+				this.lastRunCmd = {type:"runTestCase",i,dbg,runType};
 
-				await workspace.save(Uri.file(this.openFile.path));
+				const file = await this.runPath();
+				if (file==null) return;
 
 				this.openTest=i;
 				this.send({type: "openTest", i, focus: false});
-				await this.cases.runTest(i, dbg, this.openFile.path, runType);
+				await this.cases.runTest(i, dbg, file, runType);
 			},
 			setProgram: async ({cmd})=>{ await this.setProgram(cmd); },
 			setTestName: async ({i,name})=>{
@@ -356,14 +455,8 @@ export default class App {
 				if (i!=undefined) this.cases.cases[i].cancel?.cancel();
 				else this.cases.runAllCancel.cancel?.cancel();
 			},
-			setInteractor: async ({clear}) => {
-				if (clear) {
-					this.cases.cfg.interactor=null;
-				} else {
-					const u = await this.chooseSourceFile("interactor");
-					if (u!=null) this.cases.cfg.interactor=u;
-				}
-
+			setInteractor: async ({path}) => {
+				this.cases.cfg.interactor=path;
 				this.cases.upCfg();
 			},
 			setChecker: async ({checker})=>{
@@ -377,7 +470,15 @@ export default class App {
 
 				this.cases.upCfg();
 			},
-			setCfg: async ({cfg})=>{
+			setCfg: async ({cfg, global})=>{
+				for (const k of cfgKeys) {
+					(this.cfg as Record<string,unknown>)[k]=cfg[k];
+					this.config.update(k, cfg[k] ?? "", global || (workspace.workspaceFolders?.length ?? 0)==0);
+				}
+
+				this.send({type: "updateCfg", cfg: this.cfg});
+			},
+			setRunCfg: async ({cfg})=>{
 				this.cases.cfg=cfg;
 				this.cases.upCfg();
 			},
@@ -428,9 +529,23 @@ export default class App {
 					await this.cases.setFile(i,which,undefined,ty=="create");
 				}
 			},
-			chooseSourceFile: async ({key,name})=>{
-				const path = await this.chooseSourceFile(name);
-				if (path) this.send({type: "sourceFileChosen", key, path});
+			chooseFile: async ({key,name,kind})=>{
+				if (kind=="source") {
+					const path = await this.chooseSourceFile(name);
+					if (path) this.send({type: "fileChosen", key, path});
+				} else if (kind=="directory") {
+					const u = await window.showOpenDialog({
+						canSelectFiles: false,
+						canSelectFolders: true,
+						canSelectMany: false,
+						filters: {[name]: ["*"]},
+						title: `Choose ${name}`,
+						openLabel: `Set ${name}`,
+					});
+
+					if (u==undefined || u.length!=1) return;
+					this.send({type: "fileChosen", key, path: u[0].fsPath});
+				}
 			},
 			createStress: async ({name, stress}) => {
 				await this.cases.createTest(name, {...stress, status: null});
@@ -445,10 +560,10 @@ export default class App {
 				await this.cases.runner.clearCompileCache();
 			},
 			setLanguageCfg: async ({language, cfg}) => {
-				await this.cases.runner.languages.updateLangCfg(language, cfg);
+				await this.languages.updateLangCfg(language, cfg);
 			},
 			setLanguageCfgGlobally: async ({language}) => {
-				await this.cases.runner.languages.overwriteGlobalSettings(language);
+				await this.languages.overwriteGlobalSettings(language);
 			},
 			openTestSetUrl: async ({i}) => {
 				env.openExternal(Uri.parse(this.ts.sets[i].problemLink!));

@@ -3,7 +3,7 @@ import "../node_modules/@vscode/codicons/dist/codicon.css";
 import { Popover, PopoverContent, PopoverTrigger } from "@nextui-org/popover";
 import { twMerge } from "tailwind-merge";
 import { Spinner, SpinnerProps } from "@nextui-org/spinner";
-import React, { AnchorHTMLAttributes, createContext, forwardRef, HTMLAttributes, PointerEvent, useContext, useEffect, useRef, useState } from "react";
+import React, { AnchorHTMLAttributes, createContext, forwardRef, HTMLAttributes, PointerEvent, useContext, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Tooltip, TooltipPlacement } from "@nextui-org/tooltip";
 import { NextUIProvider } from "@nextui-org/system";
 import { InitState, MessageFromExt, MessageToExt, SetStateMessage, TestResult, Theme } from "./shared";
@@ -34,35 +34,69 @@ export const bgColor = {
 }
 
 export const borderColor = {
-	default: "focus:outline-none border-zinc-300 hover:border-zinc-400 dark:border-zinc-600 dark:hover:border-zinc-500 disabled:bg-zinc-300 aria-expanded:border-blue-500 focus:border-blue-500 active:border-blue-500 dark:focus:border-blue-500 dark:active:border-blue-500"
+	default: "border-zinc-300 hover:border-zinc-400 dark:border-zinc-600 dark:hover:border-zinc-500 disabled:bg-zinc-300"
 };
 
-const containerDefault = `${textColor.default} ${bgColor.default} ${borderColor.default}`;
+export const outlineColor = {
+	default: "active:outline focus:outline theme:outline-2 focus:theme:outline-blue-500 active:theme:outline-blue-500 theme:outline-offset-[-2px]"
+};
+
+const containerDefault = `${textColor.default} ${bgColor.default} ${borderColor.default} ${outlineColor.default}`;
+
+function restoreInputPosition<T extends HTMLTextAreaElement|HTMLInputElement>(forwardRef: React.Ref<T>, value: JSX.IntrinsicElements["input"]["value"]) {
+	const pos = useRef<[number|null,number|null,T["selectionDirection"]]|null>(null);
+
+	const ref = useRef<T>(null);
+	useImperativeHandle(forwardRef, ()=>ref.current!, []);
+
+	useEffect(()=>{
+		if (value!=undefined) ref.current!.value=value.toString();
+		if (pos.current!=null)
+			ref.current!.setSelectionRange(pos.current[0],pos.current[1],pos.current[2] ?? undefined);
+	}, [value]);
+
+	return [ref, (el: T)=>{
+		pos.current = [el.selectionStart, el.selectionEnd, el.selectionDirection];
+	}] as const;
+}
 
 export type InputProps = {icon?: React.ReactNode}&React.InputHTMLAttributes<HTMLInputElement>;
-export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-	({className, icon, ...props}, ref) =>
-		<input ref={ref} type="text" className={twMerge(`w-full p-2 border-2 transition duration-300 rounded-lg ${icon ? "pl-11" : ""}`, containerDefault, className)} {...props} />
-);
+export const Input = React.forwardRef<HTMLInputElement, InputProps>(function Input({className, onChange, value, icon, ...props}, forwardRef) {
+	const [ref, save] = restoreInputPosition(forwardRef, value);
+	return <input ref={ref} type="text" className={twMerge(`w-full p-2 border-2 transition duration-300 rounded-lg ${icon ? "pl-11" : ""}`, containerDefault, className)} onChange={(ev)=>{
+		save(ev.target);
+		onChange?.(ev);
+	}} {...props} />
+});
 
-export const Textarea = forwardRef<HTMLTextAreaElement, JSX.IntrinsicElements["textarea"]>((
-	{className, children, ...props}: JSX.IntrinsicElements["textarea"], ref
-) =>
-	<textarea className={twMerge("w-full p-2 border-2 transition duration-300 rounded-lg resize-y max-h-60 min-h-24", containerDefault, className)}
-		rows={6} {...props} ref={ref} tabIndex={100} >
+export function HiddenInput({className, onChange, value, ...props}: React.InputHTMLAttributes<HTMLInputElement>) {
+	const [ref, save] = restoreInputPosition<HTMLInputElement>(null, value);
+	return <input className={twMerge(borderColor.default, `bg-transparent border-0 outline-none border-b-2
+		focus:outline-none focus:theme:border-blue-500 focus:hover:theme:border-blue-500 active:hover:theme:border-blue-500 active:theme:border-blue-500 transition duration-300 px-1 py-px`, className)}
+		{...props} ref={ref} onChange={(ev)=>{
+			save(ev.target); onChange?.(ev);
+		}} ></input>
+};
+
+export const Textarea = forwardRef<HTMLTextAreaElement, JSX.IntrinsicElements["textarea"]>(function Textarea(
+	{className, children, onChange, value, ...props}: JSX.IntrinsicElements["textarea"], forwardRef
+) {
+	const [ref, save] = restoreInputPosition(forwardRef, value);
+	return <textarea className={twMerge("w-full p-2 border-2 transition duration-300 rounded-lg resize-y max-h-60 min-h-24", containerDefault, className)} ref={ref}
+		rows={6} {...props} tabIndex={100} onChange={(ev)=>{
+			save(ev.target); onChange?.(ev);
+		}} >
 		{children}
-	</textarea>);
+	</textarea>
+});
 
-export const Button = ({className, disabled, icon, ...props}: HTMLAttributes<HTMLButtonElement>&{icon?: React.ReactNode, disabled?: boolean}) =>
-	<button disabled={disabled} className={twMerge("flex flex-row justify-center gap-1.5 px-4 py-1.5 items-center rounded-xl border group", containerDefault, icon ? "pl-3" : "", className)} {...props} >
+export type ButtonProps = HTMLAttributes<HTMLButtonElement>&{icon?: React.ReactNode, disabled?: boolean};
+export const Button = React.forwardRef(function Button({className, disabled, icon, ...props}: ButtonProps, ref: React.Ref<HTMLButtonElement>) {
+	return <button ref={ref} disabled={disabled} className={twMerge("flex flex-row justify-center gap-1.5 px-4 py-1.5 items-center rounded-xl border group", containerDefault, icon ? "pl-3" : "", className)} {...props} >
 		{icon}
 		{props.children}
-	</button>;
-
-export const HiddenInput = ({className, ...props}: React.InputHTMLAttributes<HTMLInputElement>) =>
-	<input className={twMerge(`bg-transparent border-0 outline-none border-b-2
-		focus:outline-none focus:border-blue-500 transition duration-300 px-1 py-px`, borderColor.default, className)}
-		{...props} ></input>
+	</button>
+});
 
 export const IconButton = ({className, icon, disabled, ...props}: {icon?: React.ReactNode, disabled?: boolean}&JSX.IntrinsicElements["button"]) =>
 	<button className={twMerge("rounded-full p-2 border flex items-center justify-center", containerDefault, className)} disabled={disabled} {...props} >
@@ -151,9 +185,21 @@ export type DropdownPart = ({type: "txt", txt?: React.ReactNode}
 export const AppModal = ({children,...props}: ModalProps) =>
 	<Modal portalContainer={useContext(AppCtx).rootRef.current!} {...props} >{children}</Modal>;
 
-export function Dropdown({parts, trigger, onOpenChange}: {trigger?: React.ReactNode, parts: DropdownPart[], onOpenChange?: (x:boolean)=>void}) {
-	const [open, setOpen] = useState(false);
+export function Dropdown({parts, trigger, onOpenChange, open, setOpen}: {
+	trigger?: React.ReactNode, parts: DropdownPart[],
+	onOpenChange?: (x:boolean)=>void,
+	open?: boolean, setOpen?: (x: boolean)=>void
+}) {
+	const state = useState(false);
+	open ??= state[0]; setOpen ??= state[1];
+	
 	const ctx = useContext(AppCtx);
+
+	const [keySel, setKeySel] = useState<string|number|null>(null);
+	const [focusSel, setFocusSel] = useState<boolean>(false);
+
+	const acts = parts.map((v,i)=>({key: v.key ?? i, type: v.type})).filter(v=>v.type=="act");
+	const idx = keySel!=null ? acts.findIndex(p=>p.key==keySel) : -1;
 
 	//these components are fucked up w/ preact and props don't merge properly with container element
 	return <Popover placement="bottom" showArrow isOpen={open}
@@ -162,14 +208,35 @@ export function Dropdown({parts, trigger, onOpenChange}: {trigger?: React.ReactN
 			onOpenChange?.(x);
 		}} triggerScaleOnOpen={false} portalContainer={ctx.rootRef.current!} >
 		<PopoverTrigger><div>{trigger}</div></PopoverTrigger>
-		<PopoverContent className="rounded-md dark:bg-zinc-900 bg-zinc-100 dark:border-gray-800 border-zinc-300 px-0 py-0 max-w-60 overflow-y-auto justify-start max-h-[min(90dvh,30rem)]" >
+		<PopoverContent className="rounded-md dark:bg-zinc-900 bg-zinc-100 dark:border-gray-800 border-zinc-300 px-0 py-0 max-w-60 overflow-y-auto justify-start max-h-[min(90dvh,30rem)]"
+			onKeyDown={(ev)=>{
+				if (acts.length==0 || !open) return;
+
+				if (ev.key=="ArrowDown") {
+					const nidx = idx==-1 ? 0 : (idx+1)%acts.length;
+					setKeySel(acts[nidx].key);
+					setFocusSel(true);
+					ev.preventDefault();
+				} else if (ev.key=="ArrowUp") {
+					const pidx = idx==-1 ? acts.length-1 : (idx+acts.length-1)%acts.length;
+					setKeySel(acts[pidx].key);
+					setFocusSel(true);
+					ev.preventDefault();
+				}
+			}} >
 			<div>
 				{parts.map((x,i) => {
 					if (x.type=="act")
 						return <Button key={x.key ?? i} disabled={x.disabled}
-							className={`m-0 dark:border-zinc-700 border-zinc-300 border-t-0 first:border-t rounded-none first:rounded-t-md last:rounded-b-md dark:hover:bg-zinc-700 hover:bg-zinc-300 w-full hover:border-1 active:border-1 ${
+							className={`m-0 dark:border-zinc-700 border-zinc-300 border-t-0 first:border-t rounded-none first:rounded-t-md last:rounded-b-md dark:hover:bg-zinc-700 hover:bg-zinc-300 w-full hover:outline hover:outline-1 [&:not(:focus)]:hover:dark:outline-zinc-600 [&:not(:focus)]:hover:outline-zinc-400 ${
 								x.active ? "dark:bg-zinc-950 bg-zinc-200" : ""
-							}`}
+							} ${outlineColor.default}`}
+							onBlur={(x.key??i)==keySel ? ()=>setFocusSel(false) : undefined}
+							ref={(el)=>{
+								if ((x.key??i)==keySel && el!=null && focusSel) {
+									el.focus();
+								}
+							}}
 							onClick={() => {
 								x.act();
 								setOpen(false);
@@ -324,11 +391,26 @@ export function useMessage(handle: (x: MessageFromExt)=>void, deps?: unknown[]) 
 	}, deps ?? []);
 }
 
-export function useChooseFile(key: string, chosen: (x: string)=>void) {
+export function useChooseFile(key: string, chosen: (x: string)=>void, kind: "source"|"directory"="source", deps?: unknown[]) {
 	useMessage((x) => {
-		if (x.type=="sourceFileChosen" && x.key==key) chosen(x.path);
-	});
-	return (name: string)=>send({type: "chooseSourceFile", key, name});
+		if (x.type=="fileChosen" && x.key==key) chosen(x.path);
+	}, deps);
+	return (name: string)=>send({type: "chooseFile", key, name, kind});
+}
+
+export function FileChooser({name,id,path,setPath,optional,kind, deps}: {
+	name: string, id: string, path: string|null,
+	setPath: (x: string|null)=>void, optional?: boolean,
+	kind: "source"|"directory", deps?: unknown[]
+}) {
+	const choose = useChooseFile(id, setPath, kind, deps);
+
+	return <div className="flex flex-row items-center gap-2" >
+		{path==null ? <Text v={optional ? "dim" : "err"} >No {name} set</Text>
+			: <FileName path={path} ></FileName>}
+		<Button onClick={()=>choose(name)} >Choose</Button>
+		{optional && path!=null && <IconButton icon={<Icon icon="close" />} onClick={()=>setPath(null)} />}
+	</div>;
 }
 
 const allVerdicts: TestResult["verdict"][] = ["AC","RE","WA","INT","TL","ML"];

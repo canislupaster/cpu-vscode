@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
 import { promisify } from "node:util";
-import { DebugConfiguration, Disposable, EventEmitter, extensions, workspace, WorkspaceConfiguration } from "vscode";
+import { DebugConfiguration, Disposable, Event, extensions, workspace, WorkspaceConfiguration } from "vscode";
 import { argsToArr, portInUse, delay } from "./util";
 import { Hash } from "node:crypto";
 import { BaseLanguageClient } from "vscode-languageclient";
@@ -306,31 +306,25 @@ function loadCfg(config: WorkspaceConfiguration): LanguagesConfig {
 }
 
 export class LanguageProvider {
-	config=workspace.getConfiguration("cpu");
-	private cfg: LanguagesConfig = loadCfg(this.config);
+	private cfg: LanguagesConfig;
 
-	languages: Language[] = [ CPP, Rust, Python, Java ].map(x=>new x(this.cfg, this));
+	languages: Language[];
 
-	allExts = this.languages.flatMap(x=>x.exts);
-	extToLanguage = Object.fromEntries(this.languages.flatMap(x=>x.exts.map(y=>[`.${y}`,x]))) as Record<string, Language>;
-
-	private onCfgChangeSource = new EventEmitter<void>();
-	onCfgChange = this.onCfgChangeSource.event;
+	allExts: string[];
+	extToLanguage: Record<string, Language>;
 
 	private listener: Disposable;
-	private reloadTimeout: null|NodeJS.Timeout = null;
 
-	constructor() {
-		this.listener=workspace.onDidChangeConfiguration((e)=>{
-			if (e.affectsConfiguration("cpu")) {
-				if (this.reloadTimeout!=null) clearTimeout(this.reloadTimeout);
-				
-				this.reloadTimeout=setTimeout(()=>{
-					const ncfg = loadCfg(this.config=workspace.getConfiguration("cpu"));
-					for (const k in ncfg) this.cfg[k]=ncfg[k];
-					this.onCfgChangeSource.fire();
-				}, 800);
-			}
+	constructor(public config: WorkspaceConfiguration, onChangeCfg: Event<WorkspaceConfiguration>) {
+		this.cfg = loadCfg(config);
+
+		this.languages = [ CPP, Rust, Python, Java ].map(x=>new x(this.cfg, this));
+
+		this.allExts = this.languages.flatMap(x=>x.exts);
+		this.extToLanguage = Object.fromEntries(this.languages.flatMap(x=>x.exts.map(y=>[`.${y}`,x]))) as Record<string, Language>;
+
+		this.listener = onChangeCfg((nConfig)=>{
+			this.cfg = loadCfg(this.config = nConfig);
 		});
 	}
 
@@ -363,8 +357,7 @@ export class LanguageProvider {
 			this.cfg[name][lk]=cfg[lk];
 			const sec = Object.fromEntries(Object.entries(this.cfg).map(([a,b]) =>[a, b[lk]]));
 
-			await workspace.getConfiguration("cpu").update(cfgMap[lk], sec,
-				global || (workspace.workspaceFolders?.length ?? 0)==0);
+			await this.config.update(cfgMap[lk], sec, global || (workspace.workspaceFolders?.length ?? 0)==0);
 		}
 	}
 
@@ -373,7 +366,6 @@ export class LanguageProvider {
 	}
 
 	dispose() {
-		this.listener.dispose(); this.onCfgChangeSource.dispose();
-		if (this.reloadTimeout!=null) clearTimeout(this.reloadTimeout);
+		this.listener.dispose();
 	}
 }

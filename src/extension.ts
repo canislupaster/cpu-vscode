@@ -63,7 +63,7 @@ export function activate(ctx: ExtensionContext) {
 				if (tm) clearTimeout(tm);
 				tm=setTimeout(()=>{
 					commands.executeCommand("workbench.action.webview.reloadWebviewAction");
-				}, 500);
+				}, 2000);
 			};
 
 			log.info(`Starting watch for ${watchers.length} files`);

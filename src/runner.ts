@@ -179,9 +179,8 @@ export class Runner {
 	private cache: Cache;
 	// wait for promise when matching active
 	private activeCompilations: Record<string, Promise<void>> = {};
-	languages = new LanguageProvider();
 
-	constructor(private ctx: ExtensionContext, private log: LogOutputChannel) {
+	constructor(private ctx: ExtensionContext, private log: LogOutputChannel, private languages: LanguageProvider) {
 		this.cache=ctx.globalState.get<Cache>("cache") ?? {entries: [], dir: this.getBuildDir()};
 	}
 
@@ -202,10 +201,10 @@ export class Runner {
 	}
 	
 	getBuildDir() {
-		const buildDir = workspace.getConfiguration("cpu.buildDir").get<string>("");
-		if (buildDir && buildDir.length>0) return buildDir;
-		if (this.ctx.storageUri) return join(this.ctx.storageUri?.fsPath, "build");
-		else if (this.ctx.globalStorageUri) return join(this.ctx.globalStorageUri?.fsPath, "build");
+		const buildDir = workspace.getConfiguration("cpu").get<string>("buildDir");
+		if (buildDir) return buildDir;
+		else if (this.ctx.storageUri) return join(this.ctx.storageUri.fsPath, "build");
+		else if (this.ctx.globalStorageUri) return join(this.ctx.globalStorageUri.fsPath, "build");
 		else throw new Error("No build directory");
 	}
 
@@ -600,9 +599,5 @@ export class Runner {
 
 			await end?.();
 		}
-	}
-
-	dispose() {
-		this.languages.dispose();
 	}
 }

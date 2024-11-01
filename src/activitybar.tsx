@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { TestCaseFile, TestCaseOutput, useTestSource, useTestCases, SetProgram, RunStats, TestErr, TestSetStatus, DiffContextProvider } from "./testcase";
 import { Collapse } from "react-collapse";
 import { Progress } from "@nextui-org/progress";
+import { twMerge } from "tailwind-merge";
 
 function SmallTestCaseEditor({i,test}: {i: number}&TestCaseI) {
 	const source = useTestSource(i);
@@ -116,8 +117,8 @@ const SmallTestCase = React.memo(({test,i,open: openOpt,setOpen,interactive}: Te
 	</Card>;
 });
 
-const VerdictText = ({v,big}: {v:TestResult["verdict"], big?: boolean}) =>
-	<Text v="bold" className={`px-2 rounded-md ${verdictColor[v].bg} text-black ${big ? "text-2xl" : ""}`} >
+const VerdictText = ({v,big,className}: {v:TestResult["verdict"], big?: boolean, className?: string}) =>
+	<Text v="bold" className={twMerge(`px-2 rounded-md ${verdictColor[v].bg} text-black ${big ? "text-2xl" : ""}`, className)} >
 		{v}
 	</Text>;
 
@@ -139,7 +140,7 @@ const RunAllStatus = React.memo(({runAll}: {runAll: RunState["runAll"]})=>{
 				<RunStats x={lr} />
 			</div>
 
-			{lr.verdict && <VerdictText v={lr.verdict} big />}
+			{lr.verdict && <VerdictText v={lr.verdict} big className="mt-1" />}
 		</div>
 
 		<TestErr x={runAll} pre="Run all" className="mt-2" />
@@ -188,7 +189,7 @@ function App() {
 			<DiffContextProvider>
 				{eachSetOpen.map(([k,open,setOpen])=>
 					<SmallTestCase test={tc.cases[k]} i={Number(k)} key={k} open={open}
-						setOpen={setOpen} interactive={tc.cfg.interactor!=null} />
+						setOpen={setOpen} interactive={tc.runCfg.interactor!=null} />
 				)}
 			</DiffContextProvider>
 		</div>

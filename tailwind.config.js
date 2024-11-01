@@ -1,4 +1,5 @@
 import { nextui } from "@nextui-org/theme"
+import plugin from "tailwindcss/plugin"
 // eslint-disable-next-line no-unused-vars
 import {Config} from "tailwindcss"
 
@@ -27,5 +28,8 @@ export default {
     layout: {
       disabledOpacity: "1.0"
     }
+  }), plugin((cfg) => {
+    cfg.addVariant("theme", ["&:is(.dark *,.light *)"]);
+    cfg.addVariant("enabled", ["&:not(disabled)"]);
   })],
 }

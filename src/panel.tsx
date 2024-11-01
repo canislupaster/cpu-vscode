@@ -26,7 +26,7 @@ const styles: Record<Message["which"], [string, string, string]> = {
 for (const k in styles) {
 	const s = styles[k as Message["which"]];
 	s[0] = `${s[0]} px-1`;
-	s[1] = `${s[1]} border-r-1 text-right text-gray-800 dark:text-gray-200 dark:border-r-zinc-600 border-r-zinc-200 pr-1 whitespace-nowrap`;
+	s[1] = `${s[1]} border-r-1 text-right text-gray-800 dark:text-gray-200 dark:border-r-zinc-600 border-r-zinc-200 pr-1 whitespace-nowrap select-none`;
 }
 
 type UIState = {
@@ -74,13 +74,15 @@ function InputBar({onAdd, disabled, uiState, updateUIState}: {
 		<IconButton disabled={disabled} icon={<Icon icon="send" />} ></IconButton>
 		<Dropdown trigger={<IconButton type="button" icon={<Icon icon="settings-gear" />} ></IconButton>}
 			parts={[
-				{type: "big", txt: <Text v="dim" >Use shift-enter to add extra newlines</Text>},
+				{type: "big", txt: <Text v="dim" >Tip: press shift + enter to add extra newlines</Text>},
 				{type: "big", txt: <Switch size="sm" onValueChange={v=>updateUIState({showNewlines: v})}
 					isSelected={uiState.showNewlines} >Show newlines</Switch>},
 				{type: "big", txt: <Switch size="sm" onValueChange={v=>updateUIState({newlineOnEnter: v})}
 					isSelected={uiState.newlineOnEnter} >End message with newline</Switch>},
 				...msgTy.map(ty=>({type: "big" as const, txt: <Checkbox isSelected={uiState.show[ty]}
-					onValueChange={v=>updateUIState({show: {...uiState.show, [ty]: v}})} >Receive {styles[ty][2]}</Checkbox>}))
+					onValueChange={v=>updateUIState({show: {...uiState.show, [ty]: v}})} >
+						{styles[ty][2][0].toUpperCase()}{styles[ty][2].slice(1)}
+					</Checkbox>}))
 			]} />
 	</form>;
 }
@@ -100,7 +102,7 @@ function App() {
 
 	const [state, setState] = useState<TermState>({
 		i: runningI??null,
-		runCfg: init.cfg,
+		runCfg: init.runCfg,
 		tc: null
 	});
 
@@ -111,7 +113,7 @@ function App() {
 		if (cond) {
 			setMsgs([[],0,0]);
 			const c = tcs.cases[runningI];
-			setState({i: runningI, tc: c, runCfg: tcs.cfg});
+			setState({i: runningI, tc: c, runCfg: tcs.runCfg});
 			send({type: "panelReady"});
 		}
 	}, [cond, runningI]);
@@ -166,7 +168,7 @@ function App() {
 	}, [state.i, uiState.show]);
 
 	return <div className="flex flex-col items-stretch w-dvw h-dvh p-2 pt-1 px-5" >
-		{state.tc && <Text v="dim" className="mb-1" >
+		{state.tc && <Text v="dim" className="mb-1 select-none" >
 			Test <Anchor onClick={()=>{
 				if (state.i!=null) send({type:"openTest", i: state.i});
 			}} >{state.tc.name}</Anchor>
@@ -182,7 +184,7 @@ function App() {
 			<Text v="md" className="text-gray-400" >Run a test case to see its output or interact with it here</Text>
 		</div>
 		: <div className="flex-1 overflow-y-auto font-mono break-all" ref={preRef} >
-			<table>
+			<table><tbody>
 				{msgs[0].map(v => {
 					const [style,leftStyle,name] = styles[v.which];
 					const trs: React.ReactNode[]=[];
@@ -194,7 +196,7 @@ function App() {
 						if (!uiState.showNewlines && i==j) continue;
 
 						const c = uiState.showNewlines && v.txt[i]=='\n'
-							? <>{v.txt.slice(j,i)}<span className="dark:text-gray-400 text-gray-600" >\n</span></>
+							? <>{v.txt.slice(j,i)}<span className="dark:text-gray-400 text-gray-600 select-none" >\n</span></>
 							: v.txt.slice(j,i);
 
 						trs.push(<tr key={`${v.i},${i}`} className={style} >
@@ -205,7 +207,7 @@ function App() {
 
 					return trs;
 				})}
-			</table>
+			</tbody></table>
 		</div>}
 
 		<Divider className="mb-1 mt-0" />

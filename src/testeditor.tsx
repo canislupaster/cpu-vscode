@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { RunCfg, Stress, TestCase, TestCaseI, TestResult } from "./shared";
-import { Alert, Anchor, appInit, AppModal, bgColor, Button, Card, Divider, DragHandle, dragTCs, expandedVerdict, FileName, Icon, IconButton, Input, render, Select, send, Tag, Text, Textarea, ThemeSpinner, useChooseFile, verdictColor } from "./ui";
+import { Cfg, cfgKeys, RunCfg, runKeys, Stress, TestCase, TestCaseI, TestResult } from "./shared";
+import { Alert, Anchor, appInit, AppModal, bgColor, Button, Card, Divider, DragHandle, dragTCs, expandedVerdict, FileChooser, FileName, Icon, IconButton, Input, render, Select, send, Tag, Text, Textarea, ThemeSpinner, verdictColor } from "./ui";
 import { Collapse } from "react-collapse";
 import React from "react";
 import { TestCaseFile, TestCaseOutput, useTestSource, useTestCases, RunStats, TestErr, DiffContextProvider } from "./testcase";
@@ -16,26 +16,16 @@ const Verdict = ({x}: {x: TestResult}) => <div className="flex flex-col items-en
 </div>;
 
 function TestStressOptions({i, stress}: {stress: Stress, i: number}) {
-	const chooseGen = useChooseFile(`generator${i}`, (generator)=>{
-		send({type: "updateStress", i, stress: {generator}});
-	});
-
-	const chooseBrute = useChooseFile(`brute${i}`, (brute)=>{
-		send({type: "updateStress", i, stress: {brute}});
-	});
-
 	return <div className="grid grid-cols-[auto_auto] gap-x-4 gap-y-2 items-start" >
 		<Text v="bold" >Generator</Text>
-		<div className="flex flex-row items-center gap-2" >
-			<FileName path={stress.generator} ></FileName>
-			<Button onClick={()=>chooseGen("generator")} >Choose</Button>
-		</div>
+		<FileChooser name="generator" id={`generator${i}`} path={stress.generator} setPath={p=>{
+			send({type: "updateStress", i, stress: {generator: p!}});
+		}} kind="source" />
 
 		<Text v="bold" >Brute force solution</Text>
-		<div className="flex flex-row items-center gap-2" >
-			<FileName path={stress.brute} ></FileName>
-			<Button onClick={()=>chooseBrute("brute force solution")} >Choose</Button>
-		</div>
+		<FileChooser name="brute force solution" id={`brute${i}`} path={stress.brute} setPath={p=>{
+			send({type: "updateStress", i, stress: {brute: p!}});
+		}} kind="source" />
 
 		<div className="flex flex-col max-w-60" >
 			<Text v="bold" >Generator arguments</Text>
@@ -48,14 +38,30 @@ function TestStressOptions({i, stress}: {stress: Stress, i: number}) {
 }
 
 const TestCase = React.memo(({test,i,open,focus}: TestCaseI&{open: boolean,focus:boolean})=>{
-	const ref = useRef<HTMLDivElement>(null);
-	useEffect(() => {
-		if (focus) ref.current!.scrollIntoView();
-	}, [focus]);
-
 	const source = useTestSource(i);
-
 	const d = {disabled: test.cancellable!=null};
+
+	const ref = useRef<HTMLDivElement|null>(null);
+	useEffect(()=>{
+		if (focus) {
+			//wait for collapses and stuff to finish loading/expanding
+			let lastY=-1, int: NodeJS.Timeout|null=null;
+			int=setInterval(()=>{
+				const y = ref.current!.offsetTop+ref.current!.offsetHeight;
+				if (y!=lastY) {
+					lastY=y;
+				} else {
+					ref.current!.scrollIntoView({block: "center", behavior: "smooth"});
+					clearInterval(int!);
+					int=null;
+				}
+			}, 50);
+
+			return ()=>int!=null ? clearInterval(int) : undefined;
+		} else {
+			return ()=>{};
+		}
+	}, [focus]);
 
 	const detach = (which: "inFile"|"ansFile") => <Anchor onClick={()=>{
 		send({type: "setTestFile", i, ty: "detach", which});
@@ -132,14 +138,6 @@ function StressTestCreator({open, onOpenChange}: {open: boolean, onOpenChange: (
 
 	const [err, setErr] = useState<string|null>(null);
 
-	const chooseGen = useChooseFile("generator", (gen)=>{
-		setState(s=>({...s, generator: gen}));
-	});
-
-	const chooseBrute = useChooseFile("brute", (brute)=>{
-		setState(s=>({...s, brute: brute}));
-	});
-
 	return <AppModal isOpen={open} onOpenChange={onOpenChange} >
 		<ModalContent>
 			{(close) => (
@@ -154,15 +152,17 @@ function StressTestCreator({open, onOpenChange}: {open: boolean, onOpenChange: (
 
 						<div className="flex flex-row gap-2 items-center" >
 							<Text v="bold" >Generator:</Text>
-							{state.generator!=null ? <FileName path={state.generator} ></FileName> : <Text v="err" >None set</Text>}
+							<FileChooser name="generator" id="generator" path={state.generator} setPath={p=>{
+								setState(s=>({...s, generator: p}))
+							}} kind="source" />
 						</div>
-						<Button onClick={()=>chooseGen("generator")} >Set generator</Button>
 
 						<div className="flex flex-row gap-2 items-center" >
 							<Text v="bold" >Brute force solution:</Text>
-							{state.brute!=null ? <FileName path={state.brute} ></FileName> : <Text v="err" >None set</Text>}
+							<FileChooser name="brute force solution" id="brute" path={state.brute} setPath={p=>{
+								setState(s=>({...s, brute: p}))
+							}} kind="source" />
 						</div>
-						<Button onClick={()=>chooseBrute("brute force solution")} >Set brute force solution</Button>
 
 						{err && <Alert bad title="Invalid stress test" txt={err} />}
 					</ModalBody>
@@ -213,15 +213,26 @@ function LanguageCfg({cfg, language}: {cfg: LanguageConfig, language: string}) {
 	</Card>;
 }
 
+type UnifiedCfg = RunCfg&Cfg;
+
 function App() {
 	const tc = useTestCases();
-	const checkerV = tc.cfg.checker ? (
-		tc.cfg.checker.type=="file" ? {label: tc.cfg.checker.path, value: null}
-		: {label: tc.cfg.checker.name, value: tc.cfg.checker.name}) : null;
+	const checkerV = tc.runCfg.checker ? (
+		tc.runCfg.checker.type=="file" ? {label: tc.runCfg.checker.path, value: null}
+		: {label: tc.runCfg.checker.name, value: tc.runCfg.checker.name}) : null;
 
 	const [language, setLanguage] = useState<string|null>(null);
 
-	const modCfg = (x: Partial<RunCfg>) => send({type:"setCfg", cfg: {...tc.cfg, ...x}});
+	const modCfg = (x: Partial<UnifiedCfg>) => {
+		const runCfgEnts = Object.entries(x).filter(([k])=>(runKeys as readonly string[]).includes(k));
+		const cfgEnts = Object.entries(x).filter(([k])=>(cfgKeys as readonly string[]).includes(k));
+
+		if (runCfgEnts.length>0)
+			send({type:"setRunCfg", cfg: {...tc.runCfg, ...Object.fromEntries(runCfgEnts)}});
+		if (cfgEnts.length>0)
+			send({type:"setCfg", cfg: {...tc.cfg, ...Object.fromEntries(cfgEnts)}, global: false});
+	};
+
 	const [order, drag] = dragTCs(tc.ordered);
 
 	const {isOpen, onOpen, onOpenChange} = useDisclosure();
@@ -229,7 +240,7 @@ function App() {
 	//dirty file io, cleared when updated
 	//sorry for complexity
 	const [fileIO, setFileIO] = useState<RunCfg["fileIO"]|"empty">(null);
-	const xfileIO = fileIO=="empty" ? {input:"",output:""} : fileIO ?? tc.cfg.fileIO;
+	const xfileIO = fileIO=="empty" ? {input:"",output:""} : fileIO ?? tc.runCfg.fileIO;
 	const isValid = useMemo(()=>{
 		if (fileIO==null || fileIO=="empty") return null;
 		if (fileIO.input==fileIO.output) return "The input file can't be the same as the output file!";
@@ -242,28 +253,29 @@ function App() {
 
 	useEffect(() => {
 		if (fileIO!=null && fileIO!="empty" && isValid==null) modCfg({fileIO});
-	}, [fileIO, tc.cfg]);
+	}, [fileIO, tc.runCfg]);
 
-	useEffect(() => setFileIO(null), [tc.cfg.fileIO])
+	useEffect(() => setFileIO(null), [tc.runCfg.fileIO])
 
 	const [err, setErr] = useState<Record<string,[string,string]|undefined>>({});
 
-	const numericInputChange = <K extends "tl"|"ml"|"nProcs">(name: string, prop: K, nat: boolean, fallback: RunCfg[K]|"none") => {
+	const numericInputChange = <K extends "tl"|"ml"|"nProcs">(name: string, prop: K, nat: boolean, fallback: UnifiedCfg[K]|"none") => {
 		return (ev: React.ChangeEvent<HTMLInputElement>)=>{
 			const v = nat ? Number.parseInt(ev.target.value) : Number.parseFloat(ev.target.value);
 			const v2=isNaN(v) ? fallback : v;
 			if ((nat && !isNaN(v) && v.toString()!=ev.target.value) || v2=="none" || v<=0) {
-				setErr({...err, [prop]: [`Invalid ${name}`,
-					v2=="none" ? "Empty input or not a number" : v<=0 ? "Number must be positive" : "Not an integer"]})
+				setErr({...err, [prop]: [
+					`Invalid ${name}`,
+					v2=="none" ? "Empty input or not a number"
+					: v<=0 ? "Number must be positive" : "Not an integer"
+				]})
 				return;
 			} else {
 				setErr({...err, [prop]: undefined})
 			}
-
-			const ncfg = {...tc.cfg};
-			ncfg[prop]=v2;
-			send({type:"setCfg", cfg: ncfg})
-		}
+			
+			modCfg({[prop]: v2});
+		};
 	};
 
 	const oneErr = Object.values(err).find(x=>x!=undefined);
@@ -275,16 +287,12 @@ function App() {
 
 		<div className="flex flex-col items-start gap-2" >
 			<div className="grid grid-cols-2 gap-x-7 gap-y-2 mt-2 items-center" >
-				<Text>Interactor</Text>
-				<div className="flex flex-row gap-2 items-center" >
-					{tc.cfg.interactor==null ? <Text v="dim" >
-						No interactor set
-					</Text> : <>
-						<FileName path={tc.cfg.interactor} ></FileName>
-						<IconButton icon={<Icon icon="close" />} onClick={()=>send({type:"setInteractor", clear:true})} />
-					</>}
-					<Button onClick={()=>send({type:"setInteractor",clear:false})} >Choose</Button>
+				<div className="col-span-2" >
+					<Text v="bold" >Runner</Text>
 				</div>
+
+				<Text>Interactor</Text>
+				<FileChooser optional name="interactor" id="interactor" path={tc.runCfg.interactor} setPath={p=>send({type:"setInteractor",path:p})} kind="source" />
 
 				<Text>Checker</Text>
 				<Select value={checkerV}
@@ -292,29 +300,29 @@ function App() {
 					// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
 					onChange={(v: any) => send({type: "setChecker", checker: v.value as string})}
 					isOptionSelected={(x)=>
-						tc.cfg.checker!=null && tc.cfg.checker.type=="default" && tc.cfg.checker.name==x as string
+						tc.runCfg.checker!=null && tc.runCfg.checker.type=="default" && tc.runCfg.checker.name==x as string
 					} />
 
 				<Text>Focus test I/O on run</Text>
-				<Checkbox isSelected={tc.cfg.focusTestIO} onValueChange={(x)=>modCfg({focusTestIO: x})} ></Checkbox>
+				<Checkbox isSelected={tc.runCfg.focusTestIO} onValueChange={(x)=>modCfg({focusTestIO: x})} ></Checkbox>
 
 				<Text>Time limit (s)</Text>
 				<div className="flex flex-row items-center gap-2" >
-					<Input type="number" defaultValue={tc.cfg.tl ?? ""} step={0.1} min={0.1}
-						onChange={numericInputChange("time liimt", "tl", false, undefined)} ></Input>
-					{tc.cfg.tl!=undefined && <IconButton icon={<Icon icon="close" />} onClick={()=>modCfg({tl:undefined})} />}
+					<Input type="number" defaultValue={tc.runCfg.tl ?? ""} step={0.1} min={0.1}
+						onChange={numericInputChange("time limit", "tl", false, undefined)} ></Input>
+					{tc.runCfg.tl!=undefined && <IconButton icon={<Icon icon="close" />} onClick={()=>modCfg({tl:undefined})} />}
 				</div>
 				<Text>Memory limit (MB)</Text>
 				<div className="flex flex-row items-center gap-2" >
-					<Input type="number" defaultValue={tc.cfg.ml ?? ""} step={16} min={16}
+					<Input type="number" defaultValue={tc.runCfg.ml ?? ""} step={16} min={16}
 						onChange={numericInputChange("memory limit", "ml", true, undefined)} ></Input>
-					{tc.cfg.ml!=undefined && <IconButton icon={<Icon icon="close" />} onClick={()=>modCfg({ml:undefined})} />}
+					{tc.runCfg.ml!=undefined && <IconButton icon={<Icon icon="close" />} onClick={()=>modCfg({ml:undefined})} />}
 				</div>
 				<div className="flex flex-col" >
 					<Text>Send EOF</Text>
 					<Text v="dim" >This will disable interacting with your program</Text>
 				</div>
-				<Checkbox isSelected={tc.cfg.eof} onValueChange={(x)=>modCfg({eof: x})} ></Checkbox>
+				<Checkbox isSelected={tc.runCfg.eof} onValueChange={(x)=>modCfg({eof: x})} ></Checkbox>
 
 				<Text>Use file I/O</Text>
 				<Checkbox isSelected={xfileIO!=null} onValueChange={(v)=>{
@@ -331,11 +339,12 @@ function App() {
 
 				{isValid!=null && <Alert className="mt-2 col-span-2" bad title="Invalid file I/O" txt={isValid} />}
 
-				<Text>Language settings for</Text>
-				<Select value={language!=null ? {label: language, value: language} : null} placeholder="Select language..."
-					options={Object.keys(tc.languagesCfg).map(k=>({value:k,label:k}))}
-					onChange={(v) => setLanguage((v as {value:string}).value)} />
-
+				<div className="flex flex-row gap-3 items-center col-span-2" >
+					<Text v="bold" >User</Text>
+					<Text v="dim" >These settings are not testset-specific. You can <Anchor onClick={()=>{
+						send({type:"setCfg", cfg: tc.cfg, global: true});
+					}} >apply them globally.</Anchor></Text>
+				</div>
 
 				<div className="flex flex-col" >
 					<Text>Process limit</Text>
@@ -345,7 +354,40 @@ function App() {
 				<Input type="number" defaultValue={tc.cfg.nProcs} step={1} min={1}
 					onChange={numericInputChange("number of processes", "nProcs", true, "none")} ></Input>
 
+				<Text>Build directory</Text>
+				<FileChooser optional name="build directory" id="buildDir"
+					path={tc.cfg.buildDir ?? null} deps={[tc.cfg]}
+					setPath={p=>modCfg({buildDir: p ?? undefined})} kind="directory" />
+
+				<Text>Test directory</Text>
+				<FileChooser optional name="test directory" id="testDir"
+					path={tc.cfg.testDir ?? null} deps={[tc.cfg]}
+					setPath={p=>modCfg({testDir: p ?? undefined})} kind="directory" />
+
+				<Text>Create files when importing tasks</Text>
+				<Checkbox isSelected={tc.cfg.createFiles} onValueChange={(x)=>modCfg({createFiles: x})} ></Checkbox>
+
+				{tc.cfg.createFiles && <>
+					<Text>Created filename</Text>
+					<Textarea value={tc.cfg.createFileName} onChange={(e)=>{
+						modCfg({createFileName: e.target.value})
+					}} className="resize-none h-14 max-w-72" />
+
+					<div className="flex flex-col" >
+						<Text>Created file template</Text>
+						<Text v="dim" >This file will be copied when importing tasks.</Text>
+					</div>
+					<FileChooser optional name="template" id="createdFileTemplate"
+						path={tc.cfg.createFileTemplate ?? null} deps={[tc.cfg]}
+						setPath={p=>modCfg({createFileTemplate: p ?? undefined})} kind="source" />
+				</>}
+
 				{oneErr && <Alert className="mt-2 col-span-2" bad title={oneErr[0]} txt={oneErr[1]} />}
+
+				<Text>Language settings for</Text>
+				<Select value={language!=null ? {label: language, value: language} : null} placeholder="Select language..."
+					options={Object.keys(tc.languagesCfg).map(k=>({value:k,label:k}))}
+					onChange={(v) => setLanguage((v as {value:string}).value)} />
 			</div>
 
 			{language!=null && <LanguageCfg language={language} cfg={tc.languagesCfg[language]} key={language} />}

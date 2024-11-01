@@ -3,7 +3,7 @@
   "publisher": "thomasqm",
   "displayName": "Competitive Programmers Union",
   "description": "A smoother competitive programming experience: test cases, debugging, stress testing and more",
-  "version": "0.2.5",
+  "version": "0.3.0",
   "icon": "resources/icon.png",
   "author": "Thomas Marlowe",
   "repository": {
@@ -37,6 +37,11 @@
         "command": "cpu.runAll",
         "title": "Run all tests",
         "category": "CPU"
+      },
+      {
+        "command": "cpu.lastRun",
+        "title": "Rerun last run test(s)",
+        "category": "CPU"
       }
     ],
     "configuration": {
@@ -51,6 +56,26 @@
           "type": "string",
           "default": "",
           "description": "Build directory"
+        },
+        "cpu.createFiles": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to create files when importing tests"
+        },
+        "cpu.createFileName": {
+          "type": "string",
+          "default": "{{#contest}}{{.}}/{{/contest}}{{problem}}.cpp",
+          "description": "Name of created file"
+        },
+        "cpu.createFileTemplate": {
+          "type": "string",
+          "default": "",
+          "description": "Path to template"
+        },
+        "cpu.nProcs": {
+          "type": "number",
+          "default": 10,
+          "description": "Max number of processes that can run in parallel"
         },
         "cpu.runtime": {
           "type": "object",
@@ -157,7 +182,7 @@
             }
           },
           "default": {
-            "java": "",
+            "java": "-g",
             "python": "",
             "rust": "",
             "c++": "-Wall -std=c++20 -g"
