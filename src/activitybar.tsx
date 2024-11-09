@@ -46,7 +46,7 @@ const SmallTestCase = React.memo(({test,i,open: openOpt,setOpen,interactive}: Te
 							</>}
 					</div>
 
-					{test.cancellable!=null || test.lastRun && <div className="flex flex-row gap-2 items-center" >
+					{(test.cancellable!=null || test.lastRun) && <div className="flex flex-row gap-2 items-center" >
 						{test.cancellable!=null ? <ThemeSpinner color="white" size="sm" /> : (
 							test.err ? <AppTooltip content={
 								<div className="max-w-full" ><TestErr x={test} noFile /></div>
@@ -81,8 +81,10 @@ const SmallTestCase = React.memo(({test,i,open: openOpt,setOpen,interactive}: Te
 			<div className="flex flex-row items-center gap-2 ml-2" >
 				<Text v="dim" className="text-nowrap" >for 0 ≤ i {"< "}</Text>
 				<HiddenInput value={test.stress.maxI} onChange={(ev) => {
-					send({type: "updateStress", i, stress: {maxI: Number.parseInt(ev.target.value)}})
-				}} min={1} max={1e9} type="number" />
+					const num = Number.parseInt(ev.target.value);
+					if (isFinite(num) && num>=0)
+						send({type: "updateStress", i, stress: {maxI: num}})
+				}} type="number" min={1} max={1e9} />
 			</div>
 
 			<div className="flex flex-row items-center gap-2" >

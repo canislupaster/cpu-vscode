@@ -350,7 +350,7 @@ export class TestCases {
 	}
 
 	private async clearOldFile(c: TestCase, which: "inFile"|"ansFile") {
-		if (which=="inFile" && c.tmpIn || which=="ansFile" && c.tmpAns)
+		if ((which=="inFile" && c.tmpIn) || (which=="ansFile" && c.tmpAns))
 			if (c[which]!=null) await rm(c[which], {force: true});
 	}
 
@@ -388,7 +388,7 @@ export class TestCases {
 		const out = resolve(join(await this.getTestDir(this.setId), f=="output" ? `output${i}.out` : `${f}${i}`));
 
 		if (doRm) await rm(out, {force: true, recursive: f!="output"});
-		else if (f!="output") await mkdir(out);
+		else if (f!="output") await mkdir(out, {recursive: true});
 
 		return out;
 	}

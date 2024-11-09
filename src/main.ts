@@ -211,7 +211,7 @@ export default class App {
 			await this.setProgram("open");
 		}
 
-		const path = this.currentFile ?? this.cases.file;
+		const path = this.cases.file ?? this.currentFile;
 		if (path==null) return null;
 
 		await workspace.save(Uri.file(path));
@@ -285,6 +285,10 @@ export default class App {
 			}, 500);
 		}));
 
+		this.toDispose.push({dispose: ()=>{
+			if (this.cfgReloadTimeout!=null) clearTimeout(this.cfgReloadTimeout);
+		}});
+
 		this.languages = new LanguageProvider(this.config, this.onCfgChange);
 		this.cases = new TestCases(ctx, log, (x)=>this.send(x), this.ts.current,
 			()=>this.upTestSet(), this.panelReady.event, this.languages, this.cfg);
@@ -309,7 +313,7 @@ export default class App {
 			const cur = id;
 			this.ts.nextId+=tasks.length;
 
-			for (const task of await Promise.all(tasks.map(async task => {
+			for (const task of await Promise.all(tasks.map(async (task,i) => {
 				if (this.cfg.createFiles) {
 					const cwd = (this.currentFile ? workspace.getWorkspaceFolder(Uri.file(this.currentFile)) : undefined) ?? workspace.workspaceFolders?.[0];
 					//really bad regex to find path segments at/after the one containing a number. works sometimes...
@@ -331,16 +335,16 @@ export default class App {
 						else await writeFile(path, "");
 					}
 				
-					return {...task, path};
+					return {...task, path, i};
 				} else {
-					return {...task, path: undefined};
+					return {...task, path: undefined, i};
 				}
 			}))) {
 				this.ts.sets[id] = {
 					name: task.name, group: task.group,
 					mod: Date.now(), problemLink: task.url,
-					prev: task==tasks[0] ? undefined : id-1,
-					next: task==tasks[tasks.length-1] ? undefined : id+1
+					prev: task.i==0 ? undefined : id-1,
+					next: task.i==tasks.length-1 ? undefined : id+1
 				};
 
 				await this.cases.makeTestSetData(id, task.tests, task.path);

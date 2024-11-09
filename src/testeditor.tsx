@@ -370,7 +370,7 @@ function App() {
 				{tc.cfg.createFiles && <>
 					<Text>Created filename</Text>
 					<Textarea value={tc.cfg.createFileName} onChange={(e)=>{
-						modCfg({createFileName: e.target.value})
+						modCfg({createFileName: e.target.value});
 					}} className="resize-none h-14 max-w-72" />
 
 					<div className="flex flex-col" >

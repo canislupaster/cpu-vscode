@@ -50,8 +50,9 @@ function restoreInputPosition<T extends HTMLTextAreaElement|HTMLInputElement>(fo
 	useImperativeHandle(forwardRef, ()=>ref.current!, []);
 
 	useEffect(()=>{
-		if (value!=undefined) ref.current!.value=value.toString();
-		if (pos.current!=null)
+		if (value!=undefined && value.toString()!=ref.current!.value)
+			ref.current!.value=value.toString();
+		if (pos.current!=null && (!(ref.current instanceof HTMLInputElement) || ref.current.type=="text"))
 			ref.current!.setSelectionRange(pos.current[0],pos.current[1],pos.current[2] ?? undefined);
 	}, [value]);
 
@@ -60,10 +61,12 @@ function restoreInputPosition<T extends HTMLTextAreaElement|HTMLInputElement>(fo
 	}] as const;
 }
 
+const invalidInputStyle = `dark:invalid:bg-rose-900 invalid:bg-rose-400 dark:invalid:border-red-500 invalid:border-red-700`;
+
 export type InputProps = {icon?: React.ReactNode}&React.InputHTMLAttributes<HTMLInputElement>;
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(function Input({className, onChange, value, icon, ...props}, forwardRef) {
 	const [ref, save] = restoreInputPosition(forwardRef, value);
-	return <input ref={ref} type="text" className={twMerge(`w-full p-2 border-2 transition duration-300 rounded-lg ${icon ? "pl-11" : ""}`, containerDefault, className)} onChange={(ev)=>{
+	return <input ref={ref} type="text" className={twMerge(containerDefault, `w-full p-2 border-2 transition duration-300 rounded-lg ${icon ? "pl-11" : ""} ${invalidInputStyle}`, className)} onChange={(ev)=>{
 		save(ev.target);
 		onChange?.(ev);
 	}} {...props} />
@@ -72,7 +75,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(function Inp
 export function HiddenInput({className, onChange, value, ...props}: React.InputHTMLAttributes<HTMLInputElement>) {
 	const [ref, save] = restoreInputPosition<HTMLInputElement>(null, value);
 	return <input className={twMerge(borderColor.default, `bg-transparent border-0 outline-none border-b-2
-		focus:outline-none focus:theme:border-blue-500 focus:hover:theme:border-blue-500 active:hover:theme:border-blue-500 active:theme:border-blue-500 transition duration-300 px-1 py-px`, className)}
+		focus:outline-none focus:theme:border-blue-500 focus:hover:theme:border-blue-500 active:hover:theme:border-blue-500 active:theme:border-blue-500 transition duration-300 px-1 py-px ${invalidInputStyle}`, className)}
 		{...props} ref={ref} onChange={(ev)=>{
 			save(ev.target); onChange?.(ev);
 		}} ></input>
@@ -82,7 +85,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, JSX.IntrinsicElements["t
 	{className, children, onChange, value, ...props}: JSX.IntrinsicElements["textarea"], forwardRef
 ) {
 	const [ref, save] = restoreInputPosition(forwardRef, value);
-	return <textarea className={twMerge("w-full p-2 border-2 transition duration-300 rounded-lg resize-y max-h-60 min-h-24", containerDefault, className)} ref={ref}
+	return <textarea className={twMerge(containerDefault, `w-full p-2 border-2 transition duration-300 rounded-lg resize-y max-h-60 min-h-24 ${invalidInputStyle}`, className)} ref={ref}
 		rows={6} {...props} tabIndex={100} onChange={(ev)=>{
 			save(ev.target); onChange?.(ev);
 		}} >
