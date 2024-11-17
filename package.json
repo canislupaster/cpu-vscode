@@ -3,7 +3,7 @@
   "publisher": "thomasqm",
   "displayName": "Competitive Programmers Union",
   "description": "A smoother competitive programming experience: test cases, debugging, stress testing and more",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "icon": "resources/icon.png",
   "author": "Thomas Marlowe",
   "repository": {
@@ -11,7 +11,7 @@
     "url": "https://github.com/canislupaster/cpu-vscode"
   },
   "engines": {
-    "vscode": "^1.91.1"
+    "vscode": "^1.91.0"
   },
   "categories": [
     "Other"
@@ -254,12 +254,12 @@
     "@types/react-collapse": "^5.0.4",
     "@types/react-dom": "^18.3.0",
     "@types/shell-quote": "^1.7.5",
-    "@types/vscode": "^1.91.1",
-    "esbuild": "^0.23.1",
+    "@types/vscode": "^1.91",
+    "esbuild": "^0.24",
     "generate-license-file": "^3.5.1",
     "tailwindcss": "^3.4.10",
     "typescript": "^5.5.4",
-    "typescript-eslint": "^8.5.0"
+    "typescript-eslint": "^8"
   },
   "dependencies": {
     "@codemirror/commands": "^6.6.1",
@@ -267,8 +267,8 @@
     "@codemirror/search": "^6.5.6",
     "@codemirror/state": "^6.4.1",
     "@codemirror/view": "^6.33.0",
-    "@eslint/js": "^9.10.0",
-    "@formkit/drag-and-drop": "^0.1.6",
+    "@eslint/js": "^9.10",
+    "@formkit/drag-and-drop": "^0.2",
     "@hediet/node-reload": "^0.8.0",
     "@hono/node-server": "^1.12.2",
     "@nextui-org/checkbox": "^2.1.4",
@@ -281,9 +281,9 @@
     "@nextui-org/theme": "^2.2.9",
     "@nextui-org/tooltip": "^2.0.39",
     "@vscode/codicons": "^0.0.36",
-    "eslint": "^9.10.0",
+    "eslint": "^9.10",
     "eslint-plugin-react": "^7.36.1",
-    "framer-motion": "11.3.19",
+    "framer-motion": "^11",
     "globals": "^15.9.0",
     "hono": "^4.6.1",
     "mustache": "^4.2.0",
@@ -294,6 +294,6 @@
     "react-select": "^5.8.0",
     "shell-quote": "^1.8.1",
     "tailwind-merge": "^2.5.2",
-    "vscode-languageclient": "^8.0.2"
+    "vscode-languageclient": "^9"
   }
 }

@@ -467,18 +467,11 @@ export function DragHandle() {
 export function dragTCs(init: number[], cfg?: ParentConfig<number>): [number[], React.RefObject<HTMLDivElement>, boolean] {
 	const [dragging, setDragging] = useState(false);
 	const [parent, vs, setVs] = useDragAndDrop<HTMLDivElement,number>(init, {
-		performSort(state, data) {
-			performSort(state,data);
-			send({type: "moveTest", a:state.draggedNode.data.index, b:state.targetIndex});
+		onSort(d) {
+			send({type: "moveTest", a:d.previousPosition, b:d.position});
 		},
-		handleDragstart(d) {
-			handleDragstart(d);
-			setDragging(true);
-		},
-		handleEnd(data) {
-			handleEnd(data);
-			setDragging(false);
-		},
+		onDragstart() { setDragging(true); },
+		onDragend() { setDragging(false); },
 		plugins: [animations()],
 		dragHandle: ".dragHandle",
 		...cfg

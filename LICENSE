@@ -53,7 +53,7 @@ The following npm package may be included in this product:
 
  - doctrine@2.1.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Apache License
                        Version 2.0, January 2004
@@ -239,7 +239,7 @@ The following npm packages may be included in this product:
  - source-map-js@1.2.1
  - source-map@0.5.7
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 Copyright (c) 2009-2011, Mozilla Foundation and contributors
 All rights reserved.
@@ -275,7 +275,7 @@ The following npm package may be included in this product:
 
  - thenify-all@1.6.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -305,7 +305,7 @@ The following npm package may be included in this product:
 
  - thenify@3.3.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -335,7 +335,7 @@ The following npm package may be included in this product:
 
  - mz@2.7.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -363,17 +363,18 @@ THE SOFTWARE.
 
 The following npm packages may be included in this product:
 
- - @eslint/config-array@0.18.0
- - @eslint/core@0.7.0
+ - @eslint/config-array@0.19.0
+ - @eslint/core@0.9.0
  - @eslint/object-schema@2.1.4
- - @eslint/plugin-kit@0.2.2
+ - @eslint/plugin-kit@0.2.3
  - @humanfs/core@0.19.1
  - @humanfs/node@0.16.6
  - @humanwhocodes/module-importer@1.0.1
  - @humanwhocodes/retry@0.3.1
+ - @humanwhocodes/retry@0.4.1
  - @pkgjs/parseargs@0.11.0
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 Apache License
                            Version 2.0, January 2004
@@ -610,7 +611,7 @@ The following npm packages may be included in this product:
  - @react-types/shared@3.23.1
  - @react-types/tooltip@3.4.9
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 Apache License
                            Version 2.0, January 2004
@@ -820,7 +821,7 @@ The following npm package may be included in this product:
 
  - ts-interface-checker@0.1.13
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Apache License
                            Version 2.0, January 2004
@@ -1031,7 +1032,7 @@ The following npm packages may be included in this product:
  - eslint-visitor-keys@3.4.3
  - eslint-visitor-keys@4.2.0
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 Apache License
                            Version 2.0, January 2004
@@ -1239,9 +1240,9 @@ Apache License
 
 The following npm package may be included in this product:
 
- - @swc/helpers@0.5.13
+ - @swc/helpers@0.5.15
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Apache License
                         Version 2.0, January 2004
@@ -1457,7 +1458,7 @@ The following npm packages may be included in this product:
  - @types/react-transition-group@4.4.11
  - @types/react@18.3.12
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -1487,7 +1488,7 @@ The following npm package may be included in this product:
 
  - @types/stack-trace@0.0.29
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 MIT License
 
@@ -1517,7 +1518,7 @@ The following npm package may be included in this product:
 
  - fast-levenshtein@2.0.6
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 (MIT License)
 
@@ -1550,7 +1551,7 @@ The following npm package may be included in this product:
 
  - balanced-match@1.0.2
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 (MIT)
 
@@ -1580,7 +1581,7 @@ The following npm package may be included in this product:
 
  - commander@4.1.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 (The MIT License)
 
@@ -1611,7 +1612,7 @@ The following npm package may be included in this product:
 
  - js-yaml@4.1.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 (The MIT License)
 
@@ -1641,7 +1642,7 @@ The following npm package may be included in this product:
 
  - util-deprecate@1.0.2
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 (The MIT License)
 
@@ -1674,7 +1675,7 @@ The following npm package may be included in this product:
 
  - debug@4.3.7
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 (The MIT License)
 
@@ -1702,7 +1703,7 @@ The following npm package may be included in this product:
 
  - path-scurry@1.11.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 # Blue Oak Model License
 
@@ -1766,7 +1767,7 @@ The following npm package may be included in this product:
 
  - jackspeak@3.4.3
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 # Blue Oak Model License
 
@@ -1830,7 +1831,7 @@ The following npm package may be included in this product:
 
  - didyoumean@1.2.2
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 ## License
 
@@ -1853,7 +1854,7 @@ The following npm package may be included in this product:
 
  - argparse@2.0.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 A. HISTORY OF THE SOFTWARE
 ==========================
@@ -2116,7 +2117,7 @@ The following npm package may be included in this product:
 
  - package-json-from-dist@1.0.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 All packages under `src/` are licensed according to the terms in
 their respective `LICENSE` or `LICENSE.md` files.
@@ -2202,7 +2203,7 @@ The following npm packages may be included in this product:
  - @react-types/shared@3.25.0
  - @react-types/switch@3.5.6
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 Apache-2.0
 
@@ -2212,7 +2213,7 @@ The following npm package may be included in this product:
 
  - @vscode/codicons@0.0.36
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Attribution 4.0 International
 
@@ -2616,7 +2617,7 @@ The following npm package may be included in this product:
 
  - espree@10.3.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 BSD 2-Clause License
 
@@ -2650,7 +2651,7 @@ The following npm package may be included in this product:
 
  - react-transition-group@4.4.5
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 BSD 3-Clause License
 
@@ -2689,7 +2690,7 @@ The following npm package may be included in this product:
 
  - esrecurse@4.3.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 BSD-2-Clause
 
@@ -2699,7 +2700,7 @@ The following npm package may be included in this product:
 
  - color-string@1.9.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright (c) 2011 Heather Arthur <fayearthur@gmail.com>
 
@@ -2728,7 +2729,7 @@ The following npm package may be included in this product:
 
  - color-convert@2.0.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright (c) 2011-2016 Heather Arthur <fayearthur@gmail.com>
 
@@ -2757,7 +2758,7 @@ The following npm package may be included in this product:
 
  - color@4.2.3
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright (c) 2012 Heather Arthur
 
@@ -2786,7 +2787,7 @@ The following npm package may be included in this product:
 
  - @babel/parser@7.26.2
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright (C) 2012-2014 by various contributors (see AUTHORS)
 
@@ -2814,7 +2815,7 @@ The following npm package may be included in this product:
 
  - acorn-jsx@5.3.2
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright (C) 2012-2017 by Ingvar Stepanyan
 
@@ -2842,7 +2843,7 @@ The following npm package may be included in this product:
 
  - deep-is@0.1.4
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright (c) 2012, 2013 Thorsten Lorenz <thlorenz@gmx.de>
 Copyright (c) 2012 James Halliday <mail@substack.net>
@@ -2873,7 +2874,7 @@ The following npm package may be included in this product:
 
  - json-buffer@3.0.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright (c) 2013 Dominic Tarr
 
@@ -2904,7 +2905,7 @@ The following npm package may be included in this product:
 
  - ignore@5.3.2
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright (c) 2013 Kael Zhang <i@kael.me>, contributors
 http://kael.me/
@@ -2934,7 +2935,7 @@ The following npm package may be included in this product:
 
  - function-bind@1.1.2
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright (c) 2013 Raynos.
 
@@ -2962,7 +2963,7 @@ The following npm package may be included in this product:
 
  - esquery@1.6.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright (c) 2013, Joel Feenstra
 All rights reserved.
@@ -2995,7 +2996,7 @@ The following npm package may be included in this product:
 
  - any-promise@1.3.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright (C) 2014-2016 Kevin Beaty
 
@@ -3023,7 +3024,7 @@ The following npm package may be included in this product:
 
  - flat@5.0.2
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright (c) 2014, Hugh Kennedy
 All rights reserved.
@@ -3044,7 +3045,7 @@ The following npm package may be included in this product:
 
  - fastq@1.17.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright (c) 2015-2020, Matteo Collina <matteo.collina@gmail.com>
 
@@ -3066,7 +3067,7 @@ The following npm package may be included in this product:
 
  - @isaacs/cliui@8.0.2
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright (c) 2015, Contributors
 
@@ -3089,7 +3090,7 @@ The following npm package may be included in this product:
 
  - w3c-keyname@2.2.8
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright (C) 2016 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
 
@@ -3117,7 +3118,7 @@ The following npm package may be included in this product:
 
  - csstype@3.1.3
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright (c) 2017-2018 Fredrik Nicol
 
@@ -3145,7 +3146,7 @@ The following npm package may be included in this product:
 
  - style-mod@4.1.2
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright (C) 2018 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
 
@@ -3173,7 +3174,7 @@ The following npm package may be included in this product:
 
  - crelt@1.0.6
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright (C) 2020 by Marijn Haverbeke <marijn@haverbeke.berlin>
 
@@ -3199,9 +3200,9 @@ THE SOFTWARE.
 
 The following npm package may be included in this product:
 
- - intl-messageformat@10.7.3
+ - intl-messageformat@10.7.6
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright (c) 2023, Oath Inc.
 
@@ -3243,7 +3244,7 @@ The following npm package may be included in this product:
 
  - postcss-selector-parser@6.1.2
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright (c) Ben Briggs <beneb.info@gmail.com> (http://beneb.info)
 
@@ -3274,7 +3275,7 @@ The following npm package may be included in this product:
 
  - postcss-value-parser@4.2.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright (c) Bogdan Chadkin <trysound@yandex.ru>
 
@@ -3308,7 +3309,7 @@ The following npm packages may be included in this product:
  - prelude-ls@1.2.1
  - type-check@0.4.0
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 Copyright (c) George Zahariev
 
@@ -3337,12 +3338,12 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 The following npm packages may be included in this product:
 
- - vscode-jsonrpc@8.1.0
- - vscode-languageclient@8.1.0
- - vscode-languageserver-protocol@3.17.3
- - vscode-languageserver-types@3.17.3
+ - vscode-jsonrpc@8.2.0
+ - vscode-languageclient@9.0.1
+ - vscode-languageserver-protocol@3.17.5
+ - vscode-languageserver-types@3.17.5
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 Copyright (c) Microsoft Corporation
 
@@ -3360,9 +3361,9 @@ THE SOFTWARE IS PROVIDED *AS IS*, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 The following npm package may be included in this product:
 
- - tslib@2.8.0
+ - tslib@2.8.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright (c) Microsoft Corporation.
 
@@ -3383,7 +3384,7 @@ The following npm package may be included in this product:
 
  - find-root@1.1.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright © 2017 jsdnxx
 
@@ -3399,7 +3400,7 @@ The following npm package may be included in this product:
 
  - uri-js@4.4.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright 2011 Gary Court. All rights reserved.
 
@@ -3419,7 +3420,7 @@ The following npm package may be included in this product:
 
  - convert-source-map@1.9.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright 2013 Thorsten Lorenz. 
 All rights reserved.
@@ -3451,7 +3452,7 @@ The following npm package may be included in this product:
 
  - json-parse-even-better-errors@2.3.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright 2017 Kat Marchán
 Copyright npm, Inc.
@@ -3485,7 +3486,7 @@ The following npm package may be included in this product:
 
  - yaml@1.10.2
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright 2018 Eemeli Aro <eemeli@gmail.com>
 
@@ -3507,7 +3508,7 @@ The following npm package may be included in this product:
 
  - @jridgewell/resolve-uri@3.1.2
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright 2019 Justin Ridgewell <jridgewell@google.com>
 
@@ -3536,7 +3537,7 @@ The following npm packages may be included in this product:
  - @jridgewell/gen-mapping@0.3.5
  - @jridgewell/set-array@1.2.1
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 Copyright 2022 Justin Ridgewell <jridgewell@google.com>
 
@@ -3564,7 +3565,7 @@ The following npm package may be included in this product:
 
  - @jridgewell/trace-mapping@0.3.25
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright 2022 Justin Ridgewell <justin@ridgewell.name>
 
@@ -3592,7 +3593,7 @@ The following npm package may be included in this product:
 
  - yaml@2.6.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright Eemeli Aro <eemeli@gmail.com>
 
@@ -3618,7 +3619,7 @@ The following npm packages may be included in this product:
  - lodash.mapkeys@4.6.0
  - lodash.omit@4.5.0
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 Copyright jQuery Foundation and other contributors <https://jquery.org/>
 
@@ -3674,7 +3675,7 @@ The following npm package may be included in this product:
 
  - eslint-scope@8.2.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright JS Foundation and other contributors, https://js.foundation
 Copyright (C) 2012-2013 Yusuke Suzuki (twitter: @Constellation) and other contributors.
@@ -3710,7 +3711,7 @@ The following npm packages may be included in this product:
  - punycode@2.3.1
  - string.prototype.repeat@1.0.0
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 Copyright Mathias Bynens <https://mathiasbynens.be/>
 
@@ -3739,7 +3740,7 @@ The following npm package may be included in this product:
 
  - lodash.merge@4.6.2
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Copyright OpenJS Foundation and other contributors <https://openjsf.org/>
 
@@ -3793,11 +3794,11 @@ terms above.
 
 The following npm packages may be included in this product:
 
- - @eslint/eslintrc@3.1.0
- - @eslint/js@9.13.0
- - eslint@9.13.0
+ - @eslint/eslintrc@3.2.0
+ - @eslint/js@9.15.0
+ - eslint@9.15.0
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 Copyright OpenJS Foundation and other contributors, <www.openjsf.org>
 
@@ -3825,7 +3826,7 @@ The following npm package may be included in this product:
 
  - flatted@3.3.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 ISC License
 
@@ -3849,7 +3850,7 @@ The following npm package may be included in this product:
 
  - picocolors@1.1.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 ISC License
 
@@ -3871,17 +3872,17 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 The following npm packages may be included in this product:
 
- - @hono/node-server@1.13.3
+ - @hono/node-server@1.13.7
  - dlv@1.1.3
  - eastasianwidth@0.2.0
  - imurmurhash@0.1.4
  - keyv@4.5.4
  - natural-compare@1.4.0
  - react-remove-scroll-bar@2.3.6
- - react-select@5.8.2
+ - react-select@5.8.3
  - react-style-singleton@2.2.1
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT
 
@@ -3892,7 +3893,7 @@ The following npm packages may be included in this product:
  - resolve@1.22.8
  - resolve@2.0.0-next.5
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -3922,7 +3923,7 @@ The following npm package may be included in this product:
 
  - readdirp@3.6.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 MIT License
 
@@ -3952,7 +3953,7 @@ The following npm package may be included in this product:
 
  - acorn@8.14.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 MIT License
 
@@ -3980,9 +3981,9 @@ THE SOFTWARE.
 
 The following npm package may be included in this product:
 
- - object-inspect@1.13.2
+ - object-inspect@1.13.3
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 MIT License
 
@@ -4014,7 +4015,7 @@ The following npm packages may be included in this product:
  - brace-expansion@2.0.1
  - isarray@2.0.5
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -4045,7 +4046,7 @@ The following npm packages may be included in this product:
  - invariant@2.2.4
  - prop-types@15.8.1
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -4083,7 +4084,7 @@ The following npm packages may be included in this product:
  - @babel/traverse@7.25.9
  - @babel/types@7.26.0
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -4114,7 +4115,7 @@ The following npm package may be included in this product:
 
  - regenerator-runtime@0.14.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 MIT License
 
@@ -4144,7 +4145,7 @@ The following npm package may be included in this product:
 
  - is-array-buffer@3.0.4
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 MIT License
 
@@ -4174,7 +4175,7 @@ The following npm package may be included in this product:
 
  - has-symbols@1.0.3
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 MIT License
 
@@ -4204,7 +4205,7 @@ The following npm package may be included in this product:
 
  - pirates@4.0.6
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 MIT License
 
@@ -4234,7 +4235,7 @@ The following npm package may be included in this product:
 
  - stylis@4.2.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 MIT License
 
@@ -4266,7 +4267,7 @@ The following npm packages may be included in this product:
  - use-callback-ref@1.3.2
  - use-sidecar@1.1.2
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -4297,7 +4298,7 @@ The following npm packages may be included in this product:
  - array.prototype.flat@1.3.2
  - array.prototype.flatmap@1.3.2
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -4328,7 +4329,7 @@ The following npm packages may be included in this product:
  - fast-deep-equal@3.1.3
  - json-schema-traverse@0.4.1
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -4358,7 +4359,7 @@ The following npm package may be included in this product:
 
  - detect-node-es@1.1.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 MIT License
 
@@ -4389,7 +4390,7 @@ The following npm packages may be included in this product:
  - string.prototype.trimend@1.0.8
  - string.prototype.trimstart@1.0.8
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -4421,7 +4422,7 @@ The following npm packages may be included in this product:
  - @lezer/highlight@1.2.1
  - @lezer/lr@1.4.2
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -4452,7 +4453,7 @@ The following npm packages may be included in this product:
  - is-bigint@1.0.4
  - object.fromentries@2.0.8
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -4483,7 +4484,7 @@ The following npm packages may be included in this product:
  - @eslint-community/eslint-utils@4.4.1
  - @eslint-community/regexpp@4.12.1
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -4513,11 +4514,11 @@ The following npm packages may be included in this product:
 
  - @codemirror/commands@6.7.1
  - @codemirror/language@6.10.3
- - @codemirror/search@6.5.6
+ - @codemirror/search@6.5.7
  - @codemirror/state@6.4.1
- - @codemirror/view@6.34.1
+ - @codemirror/view@6.34.3
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -4545,9 +4546,9 @@ THE SOFTWARE.
 
 The following npm package may be included in this product:
 
- - @codemirror/merge@6.7.2
+ - @codemirror/merge@6.7.4
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 MIT License
 
@@ -4577,7 +4578,7 @@ The following npm package may be included in this product:
 
  - memoize-one@6.0.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 MIT License
 
@@ -4611,7 +4612,7 @@ The following npm packages may be included in this product:
  - is-weakset@2.0.3
  - which-collection@1.0.2
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -4646,7 +4647,7 @@ The following npm packages may be included in this product:
  - unbox-primitive@1.0.2
  - which-boxed-primitive@1.0.2
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -4676,7 +4677,7 @@ The following npm package may be included in this product:
 
  - is-binary-path@2.1.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 MIT License
 
@@ -4694,7 +4695,7 @@ The following npm package may be included in this product:
 
  - get-nonce@1.0.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 MIT License
 
@@ -4724,7 +4725,7 @@ The following npm package may be included in this product:
 
  - which-builtin-type@1.1.4
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 MIT License
 
@@ -4759,7 +4760,7 @@ The following npm packages may be included in this product:
  - typed-array-byte-offset@1.0.2
  - typed-array-length@1.0.6
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -4790,7 +4791,7 @@ The following npm packages may be included in this product:
  - call-bind@1.0.7
  - get-intrinsic@1.2.4
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -4844,7 +4845,7 @@ The following npm packages may be included in this product:
  - @nextui-org/use-measure@2.0.2
  - @nextui-org/use-safe-layout-effect@2.0.6
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -4874,7 +4875,7 @@ The following npm package may be included in this product:
 
  - color2k@2.0.3
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 MIT License
 
@@ -4904,7 +4905,7 @@ The following npm package may be included in this product:
 
  - tailwind-variants@0.1.20
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 MIT License
 
@@ -4932,9 +4933,9 @@ SOFTWARE.
 
 The following npm package may be included in this product:
 
- - hono@4.6.8
+ - hono@4.6.10
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 MIT License
 
@@ -4965,7 +4966,7 @@ The following npm packages may be included in this product:
  - tailwind-merge@1.14.0
  - tailwind-merge@2.5.4
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -4997,7 +4998,7 @@ The following npm packages may be included in this product:
  - array.prototype.tosorted@1.1.4
  - reflect.getprototypeof@1.0.6
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -5029,7 +5030,7 @@ The following npm packages may be included in this product:
  - has-tostringtag@1.0.2
  - is-shared-array-buffer@1.0.3
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -5061,7 +5062,7 @@ The following npm packages may be included in this product:
  - @floating-ui/dom@1.6.12
  - @floating-ui/utils@0.2.8
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -5091,7 +5092,7 @@ The following npm packages may be included in this product:
  - lilconfig@2.1.0
  - lilconfig@3.1.2
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -5119,10 +5120,10 @@ SOFTWARE.
 
 The following npm packages may be included in this product:
 
- - es-iterator-helpers@1.1.0
+ - es-iterator-helpers@1.2.0
  - es-set-tostringtag@2.0.3
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -5154,7 +5155,7 @@ The following npm packages may be included in this product:
  - has-proto@1.0.3
  - supports-preserve-symlinks-flag@1.0.0
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -5187,7 +5188,7 @@ The following npm packages may be included in this product:
  - iterator.prototype@1.1.3
  - safe-regex-test@1.0.3
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -5217,7 +5218,7 @@ The following npm package may be included in this product:
 
  - arraybuffer.prototype.slice@1.0.3
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 MIT License
 
@@ -5245,13 +5246,13 @@ SOFTWARE.
 
 The following npm packages may be included in this product:
 
- - @formatjs/ecma402-abstract@2.2.1
- - @formatjs/fast-memoize@2.2.2
- - @formatjs/icu-messageformat-parser@2.9.1
- - @formatjs/icu-skeleton-parser@1.8.5
- - @formatjs/intl-localematcher@0.5.6
+ - @formatjs/ecma402-abstract@2.2.3
+ - @formatjs/fast-memoize@2.2.3
+ - @formatjs/icu-messageformat-parser@2.9.3
+ - @formatjs/icu-skeleton-parser@1.8.7
+ - @formatjs/intl-localematcher@0.5.7
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -5269,7 +5270,7 @@ The following npm package may be included in this product:
 
  - array-buffer-byte-length@1.0.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 MIT License
 
@@ -5302,7 +5303,7 @@ The following npm packages may be included in this product:
  - safe-array-concat@1.1.2
  - typed-array-buffer@1.0.2
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -5330,9 +5331,9 @@ SOFTWARE.
 
 The following npm package may be included in this product:
 
- - @formkit/drag-and-drop@0.1.6
+ - @formkit/drag-and-drop@0.2.5
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 MIT License
 
@@ -5362,7 +5363,7 @@ The following npm package may be included in this product:
 
  - is-data-view@1.0.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 MIT License
 
@@ -5397,7 +5398,7 @@ The following npm packages may be included in this product:
  - es-object-atoms@1.0.0
  - possible-typed-array-names@1.0.0
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -5437,7 +5438,7 @@ The following npm packages may be included in this product:
  - @emotion/utils@1.4.1
  - @emotion/weak-memoize@0.4.0
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -5470,7 +5471,7 @@ The following npm packages may be included in this product:
  - react@18.3.1
  - scheduler@0.23.2
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -5502,7 +5503,7 @@ The following npm packages may be included in this product:
  - set-function-length@1.2.2
  - set-function-name@2.0.2
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -5532,7 +5533,7 @@ The following npm package may be included in this product:
 
  - shebang-command@2.0.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 MIT License
 
@@ -5551,7 +5552,7 @@ The following npm packages may be included in this product:
  - clsx@1.2.1
  - clsx@2.1.1
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -5569,7 +5570,7 @@ The following npm package may be included in this product:
 
  - use-isomorphic-layout-effect@1.1.2
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 MIT License
 
@@ -5599,7 +5600,7 @@ The following npm package may be included in this product:
 
  - jiti@1.21.6
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 MIT License
 
@@ -5632,7 +5633,7 @@ The following npm packages may be included in this product:
  - escape-string-regexp@4.0.0
  - find-up@5.0.0
  - globals@14.0.0
- - globals@15.11.0
+ - globals@15.12.0
  - import-fresh@3.3.0
  - locate-path@6.0.0
  - p-limit@3.1.0
@@ -5645,7 +5646,7 @@ The following npm packages may be included in this product:
  - wrap-ansi@8.1.0
  - yocto-queue@0.1.0
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -5663,7 +5664,7 @@ The following npm package may be included in this product:
 
  - binary-extensions@2.3.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 MIT License
 
@@ -5698,7 +5699,7 @@ The following npm packages may be included in this product:
  - strip-ansi@6.0.1
  - supports-color@7.2.0
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 MIT License
 
@@ -5714,9 +5715,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 The following npm package may be included in this product:
 
- - tailwindcss@3.4.14
+ - tailwindcss@3.4.15
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 MIT License
 
@@ -5746,7 +5747,7 @@ The following npm package may be included in this product:
 
  - fsevents@2.3.3
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 MIT License
 -----------
@@ -5777,7 +5778,7 @@ The following npm package may be included in this product:
 
  - @hediet/node-reload@0.8.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 MIT License
 
@@ -5808,7 +5809,7 @@ The following npm packages may be included in this product:
  - estraverse@5.3.0
  - esutils@2.0.3
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -5836,7 +5837,7 @@ The following npm package may be included in this product:
 
  - hoist-non-react-statics@3.3.2
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 Software License Agreement (BSD License)
 ========================================
@@ -5874,7 +5875,7 @@ The following npm package may be included in this product:
 
  - glob@10.4.5
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The ISC License
 
@@ -5898,7 +5899,7 @@ The following npm package may be included in this product:
 
  - lru-cache@10.4.3
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The ISC License
 
@@ -5923,7 +5924,7 @@ The following npm packages may be included in this product:
  - minimatch@5.1.6
  - minimatch@9.0.5
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 The ISC License
 
@@ -5947,7 +5948,7 @@ The following npm package may be included in this product:
 
  - signal-exit@4.1.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The ISC License
 
@@ -5972,7 +5973,7 @@ The following npm package may be included in this product:
 
  - foreground-child@3.3.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The ISC License
 
@@ -5996,7 +5997,7 @@ The following npm package may be included in this product:
 
  - glob-parent@5.1.2
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The ISC License
 
@@ -6020,7 +6021,7 @@ The following npm package may be included in this product:
 
  - glob-parent@6.0.2
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The ISC License
 
@@ -6044,7 +6045,7 @@ The following npm package may be included in this product:
 
  - minipass@7.1.2
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The ISC License
 
@@ -6068,7 +6069,7 @@ The following npm package may be included in this product:
 
  - anymatch@3.1.3
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The ISC License
 
@@ -6096,7 +6097,7 @@ The following npm packages may be included in this product:
  - semver@7.6.3
  - which@2.0.2
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 The ISC License
 
@@ -6120,7 +6121,7 @@ The following npm package may be included in this product:
 
  - mustache@4.2.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License
 
@@ -6140,7 +6141,7 @@ The following npm package may be included in this product:
 
  - shell-quote@1.8.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License
 
@@ -6173,7 +6174,7 @@ The following npm package may be included in this product:
 
  - @jridgewell/sourcemap-codec@1.5.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License
 
@@ -6203,7 +6204,7 @@ The following npm package may be included in this product:
 
  - deepmerge@4.3.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -6233,7 +6234,7 @@ The following npm package may be included in this product:
 
  - for-each@0.3.3
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -6263,7 +6264,7 @@ The following npm package may be included in this product:
 
  - sucrase@3.35.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -6293,7 +6294,7 @@ The following npm package may be included in this product:
 
  - chokidar@3.6.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -6323,7 +6324,7 @@ The following npm package may be included in this product:
 
  - object-keys@1.1.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -6353,7 +6354,7 @@ The following npm package may be included in this product:
 
  - is-core-module@2.15.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -6382,7 +6383,7 @@ The following npm package may be included in this product:
 
  - regexp.prototype.flags@1.5.3
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -6412,7 +6413,7 @@ The following npm package may be included in this product:
 
  - object.assign@4.1.5
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -6444,7 +6445,7 @@ The following npm packages may be included in this product:
  - is-negative-zero@2.0.3
  - is-regex@1.1.4
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 The MIT License (MIT)
 
@@ -6473,7 +6474,7 @@ The following npm package may be included in this product:
 
  - postcss-import@15.1.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -6502,7 +6503,7 @@ The following npm package may be included in this product:
 
  - object-hash@3.0.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -6532,7 +6533,7 @@ The following npm package may be included in this product:
 
  - pidusage@3.0.2
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -6562,7 +6563,7 @@ The following npm package may be included in this product:
 
  - eslint-plugin-react@7.37.2
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -6593,7 +6594,7 @@ The following npm packages may be included in this product:
  - is-extglob@2.1.1
  - word-wrap@1.2.5
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 The MIT License (MIT)
 
@@ -6623,7 +6624,7 @@ The following npm package may be included in this product:
 
  - is-glob@4.0.3
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -6653,7 +6654,7 @@ The following npm package may be included in this product:
 
  - normalize-path@3.0.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -6683,7 +6684,7 @@ The following npm package may be included in this product:
 
  - merge2@1.4.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -6716,7 +6717,7 @@ The following npm packages may be included in this product:
  - is-number@7.0.0
  - micromatch@4.0.8
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 The MIT License (MIT)
 
@@ -6746,7 +6747,7 @@ The following npm package may be included in this product:
 
  - js-tokens@4.0.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -6776,7 +6777,7 @@ The following npm package may be included in this product:
 
  - loose-envify@1.4.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -6806,7 +6807,7 @@ The following npm package may be included in this product:
 
  - lines-and-columns@1.2.4
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -6836,7 +6837,7 @@ The following npm package may be included in this product:
 
  - cosmiconfig@7.1.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -6866,7 +6867,7 @@ The following npm package may be included in this product:
 
  - dom-helpers@5.2.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -6896,7 +6897,7 @@ The following npm package may be included in this product:
 
  - path-parse@1.0.7
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -6928,7 +6929,7 @@ The following npm packages may be included in this product:
  - is-arrayish@0.2.1
  - is-arrayish@0.3.2
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 The MIT License (MIT)
 
@@ -6959,7 +6960,7 @@ The following npm packages may be included in this product:
  - array-includes@3.1.8
  - define-properties@1.2.1
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 The MIT License (MIT)
 
@@ -6987,9 +6988,9 @@ THE SOFTWARE.
 
 The following npm package may be included in this product:
 
- - es-abstract@1.23.3
+ - es-abstract@1.23.5
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -7019,7 +7020,7 @@ The following npm package may be included in this product:
 
  - string.prototype.trim@1.2.9
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -7060,7 +7061,7 @@ The following npm packages may be included in this product:
  - string.prototype.matchall@4.0.11
  - which-typed-array@1.1.15
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 The MIT License (MIT)
 
@@ -7090,7 +7091,7 @@ The following npm package may be included in this product:
 
  - simple-swizzle@0.2.2
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -7120,7 +7121,7 @@ The following npm package may be included in this product:
 
  - reusify@1.0.4
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -7150,7 +7151,7 @@ The following npm package may be included in this product:
 
  - react-collapse@5.1.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -7180,7 +7181,7 @@ The following npm package may be included in this product:
 
  - ajv@6.12.6
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -7210,7 +7211,7 @@ The following npm package may be included in this product:
 
  - to-regex-range@5.0.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -7241,7 +7242,7 @@ The following npm packages may be included in this product:
  - function.prototype.name@1.1.6
  - globalthis@1.0.4
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 The MIT License (MIT)
 
@@ -7271,7 +7272,7 @@ The following npm package may be included in this product:
 
  - picomatch@2.3.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -7299,9 +7300,9 @@ THE SOFTWARE.
 
 The following npm package may be included in this product:
 
- - framer-motion@11.3.19
+ - framer-motion@11.11.17
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -7329,9 +7330,9 @@ SOFTWARE.
 
 The following npm package may be included in this product:
 
- - cross-spawn@7.0.3
+ - cross-spawn@7.0.5
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -7361,7 +7362,7 @@ The following npm package may be included in this product:
 
  - ms@2.1.3
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -7391,7 +7392,7 @@ The following npm package may be included in this product:
 
  - is-async-function@2.0.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -7420,7 +7421,7 @@ The following npm package may be included in this product:
 
  - arg@5.0.2
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -7453,7 +7454,7 @@ The following npm packages may be included in this product:
  - @nodelib/fs.walk@1.2.8
  - fast-glob@3.3.2
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 The MIT License (MIT)
 
@@ -7483,7 +7484,7 @@ The following npm package may be included in this product:
 
  - safe-buffer@5.2.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -7514,7 +7515,7 @@ The following npm packages may be included in this product:
  - queue-microtask@1.2.3
  - run-parallel@1.2.0
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 The MIT License (MIT)
 
@@ -7543,7 +7544,7 @@ The following npm package may be included in this product:
 
  - file-entry-cache@8.0.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -7573,7 +7574,7 @@ The following npm package may be included in this product:
 
  - flat-cache@4.0.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -7604,7 +7605,7 @@ The following npm packages may be included in this product:
  - object-assign@4.1.1
  - pify@2.3.0
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 The MIT License (MIT)
 
@@ -7634,7 +7635,7 @@ The following npm package may be included in this product:
 
  - camelcase-css@2.0.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -7662,9 +7663,9 @@ THE SOFTWARE.
 
 The following npm package may be included in this product:
 
- - postcss@8.4.47
+ - postcss@8.4.49
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -7693,7 +7694,7 @@ The following npm package may be included in this product:
 
  - postcss-nested@6.2.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -7722,7 +7723,7 @@ The following npm package may be included in this product:
 
  - postcss-js@4.0.1
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -7751,7 +7752,7 @@ The following npm package may be included in this product:
 
  - read-cache@1.0.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -7780,7 +7781,7 @@ The following npm package may be included in this product:
 
  - nanoid@3.3.7
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -7809,7 +7810,7 @@ The following npm package may be included in this product:
 
  - postcss-load-config@4.0.2
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 
@@ -7838,7 +7839,7 @@ The following npm package may be included in this product:
 
  - jsx-ast-utils@3.3.5
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 Copyright (c) 2016 Ethan Cohen
@@ -7855,7 +7856,7 @@ The following npm package may be included in this product:
 
  - babel-plugin-macros@3.1.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 Copyright (c) 2020 Kent C. Dodds
@@ -7884,7 +7885,7 @@ The following npm package may be included in this product:
 
  - color-name@1.1.4
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 The MIT License (MIT)
 Copyright (c) 2015 Dmitry Ivanov
@@ -7901,7 +7902,7 @@ The following npm package may be included in this product:
 
  - fast-json-stable-stringify@2.1.0
 
-This package contains the following license and notice below:
+This package contains the following license:
 
 This software is released under the MIT license:
 
@@ -7931,9 +7932,8 @@ The following npm packages may be included in this product:
 
  - concat-map@0.0.1
  - json-stable-stringify-without-jsonify@1.0.1
- - text-table@0.2.0
 
-These packages each contain the following license and notice below:
+These packages each contain the following license:
 
 This software is released under the MIT license:
 
