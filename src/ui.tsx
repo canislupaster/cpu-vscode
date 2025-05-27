@@ -1,17 +1,17 @@
 import "../node_modules/@vscode/codicons/dist/codicon.css";
 
-import { Popover, PopoverContent, PopoverTrigger } from "@nextui-org/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@heroui/popover";
 import { twMerge } from "tailwind-merge";
-import { Spinner, SpinnerProps } from "@nextui-org/spinner";
-import React, { AnchorHTMLAttributes, createContext, forwardRef, HTMLAttributes, PointerEvent, useContext, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { Tooltip, TooltipPlacement } from "@nextui-org/tooltip";
-import { NextUIProvider } from "@nextui-org/system";
+import { Spinner, SpinnerProps } from "@heroui/spinner";
+import React, { AnchorHTMLAttributes, createContext, forwardRef, HTMLAttributes, JSX, PointerEvent, useContext, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { Tooltip, TooltipPlacement } from "@heroui/tooltip";
+import { HeroUIProvider } from "@heroui/system";
 import { InitState, MessageFromExt, MessageToExt, SetStateMessage, TestResult, Theme } from "./shared";
 import ReactSelect, { ClassNamesConfig } from "react-select";
 import { createRoot } from "react-dom/client";
-import { animations, handleDragstart, handleEnd, ParentConfig, performSort, } from "@formkit/drag-and-drop";
+import { animations, ParentConfig } from "@formkit/drag-and-drop";
 import { useDragAndDrop } from "@formkit/drag-and-drop/react";
-import { Modal, ModalProps } from "@nextui-org/modal";
+import { Modal, ModalProps } from "@heroui/modal";
 
 declare const init: InitState;
 export const appInit = init;
@@ -151,7 +151,7 @@ export const Icon = ({icon, className, ...props}: {icon: string}&HTMLAttributes<
 
 export const Alert = ({title, txt, bad, className}: {title?: React.ReactNode, txt: React.ReactNode, bad?: boolean, className?: string}) =>
 	<div className={twMerge(`border ${bad ? "border-red-500 bg-red-900" : "border-zinc-700 bg-zinc-900"} p-2 px-4 rounded-md flex flex-row gap-2`, className)} >
-		<div className="flex-shrink-0 mt-1" >
+		<div className="shrink-0 mt-1" >
 			{bad ? <Icon icon="warning" /> : <Icon icon="info" />}
 		</div>
 		<div>
@@ -212,7 +212,7 @@ export function Dropdown({parts, trigger, onOpenChange, open, setOpen}: {
 		}} triggerScaleOnOpen={false} portalContainer={ctx.rootRef.current!} >
 		<PopoverTrigger><div>{trigger}</div></PopoverTrigger>
 		<PopoverContent className="rounded-md dark:bg-zinc-900 bg-zinc-100 dark:border-gray-800 border-zinc-300 px-0 py-0 max-w-60 overflow-y-auto justify-start max-h-[min(90dvh,30rem)]"
-			onKeyDown={(ev)=>{
+			onKeyDown={ev=>{
 				if (acts.length==0 || !open) return;
 
 				if (ev.key=="ArrowDown") {
@@ -231,7 +231,7 @@ export function Dropdown({parts, trigger, onOpenChange, open, setOpen}: {
 				{parts.map((x,i) => {
 					if (x.type=="act")
 						return <Button key={x.key ?? i} disabled={x.disabled}
-							className={`m-0 dark:border-zinc-700 border-zinc-300 border-t-0 first:border-t rounded-none first:rounded-t-md last:rounded-b-md dark:hover:bg-zinc-700 hover:bg-zinc-300 w-full hover:outline hover:outline-1 [&:not(:focus)]:hover:dark:outline-zinc-600 [&:not(:focus)]:hover:outline-zinc-400 ${
+							className={`m-0 dark:border-zinc-700 border-zinc-300 border-t-0 first:border-t rounded-none first:rounded-t-md last:rounded-b-md dark:hover:bg-zinc-700 hover:bg-zinc-300 w-full hover:outline hover:outline-1 not-focus:hover:dark:outline-zinc-600 not-focus:hover:outline-zinc-400 ${
 								x.active ? "dark:bg-zinc-950 bg-zinc-200" : ""
 							} ${outlineColor.default}`}
 							onBlur={(x.key??i)==keySel ? ()=>setFocusSel(false) : undefined}
@@ -266,7 +266,7 @@ const AppCtx = createContext({
 	incTooltipCount(): void { throw new Error("tooltips should be used in tooltip ctx only"); },
 	tooltipCount: 0,
 	theme: undefined as unknown as Theme,
-	rootRef: null as unknown as React.RefObject<HTMLDivElement>
+	rootRef: null as unknown as React.RefObject<HTMLDivElement|null>
 });
 
 function Wrapper({children,className,...props}: {children: React.ReactNode}&HTMLAttributes<HTMLDivElement>) {
@@ -293,7 +293,7 @@ function Wrapper({children,className,...props}: {children: React.ReactNode}&HTML
 			tooltipCount: count,
 			theme, rootRef: root
 		}} >
-			<NextUIProvider className="contents" >{children}</NextUIProvider>
+			<HeroUIProvider className="contents" >{children}</HeroUIProvider>
 		</AppCtx.Provider>
 	</div>;
 }
@@ -358,14 +358,14 @@ export function AppTooltip({content, children, placement, className, onChange, .
 }
 
 export const Card = ({className, children, ...props}: HTMLAttributes<HTMLDivElement>) =>
-	<div className={twMerge(`flex flex-col gap-1 rounded-md p-2 border-1
+	<div className={twMerge(`flex flex-col gap-1 rounded-md p-2 border
 		dark:border-zinc-600 shadow-md dark:shadow-black shadow-white/20 border-zinc-300`, bgColor.md, className)} {...props} >
 		{children}
 	</div>;
 
 export const Tag = ({className, children, col, ...props}: HTMLAttributes<HTMLDivElement>&{col?: "secondary"}) =>
 	<div className={twMerge(
-			`flex flex-row gap-1 items-center rounded-2xl p-1 px-4 border-1 border-zinc-300 dark:border-zinc-600 shadow-lg ${col=="secondary"
+			`flex flex-row gap-1 items-center rounded-2xl p-1 px-4 border border-zinc-300 dark:border-zinc-600 shadow-lg ${col=="secondary"
 				? "dark:bg-orange-700 bg-orange-300 dark:shadow-orange-400/15 orange-300 shadow-orange-300/25"
 				: "dark:bg-sky-600 dark:shadow-sky-400/15 shadow-sky-300/25 bg-sky-300"}`,
 			className
@@ -491,9 +491,9 @@ declare let uiState: object|undefined;
 export const send = vscode.postMessage;
 
 export const useUIState = <T extends object>(defaultUIState: T) => ({
-	uiState: (): T => ({...defaultUIState, ...uiState ?? {}}),
+	uiState: (): T => ({...defaultUIState, ...(uiState ?? {})}),
 	update(x: Partial<T>) {
-		const ns: T = {...defaultUIState, ...uiState ?? {}, ...x};
+		const ns: T = {...defaultUIState, ...(uiState ?? {}), ...x};
 		uiState=ns;
 		send({type: "setUIState", newState: ns});
 		return ns;

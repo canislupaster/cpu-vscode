@@ -1,10 +1,11 @@
 import { commands, ExtensionContext, window, Disposable, EventEmitter, CancellationTokenSource, CancellationError } from "vscode";
-import { enableHotReload, hotRequire } from "@hediet/node-reload";
+import { enableHotReload } from "@hediet/node-reload/node";
 import App from "./main";
 import { join } from "path";
 import { FileChangeInfo, watch } from "fs/promises";
 import { MessageFromExt } from "./shared";
 import { cancelPromise, CPUWebviewProvider, exists, outDir } from "./util";
+import { hotReloadExportedItem } from "@hediet/node-reload";
 
 declare const WATCH: boolean;
 
@@ -29,7 +30,7 @@ export function activate(ctx: ExtensionContext) {
 	const initApp = (x: typeof App) => {
 		const app = new x(ctx, log);
 		activity.app=app; panel.app=app;
-		return [app.onMessage((x)=>onMessage.fire(x)), app];
+		return [app.onMessage((x)=>onMessage.fire(x)), app] as const;
 	};
 
 	if (WATCH) {
@@ -93,11 +94,10 @@ export function activate(ctx: ExtensionContext) {
 			window.showErrorMessage(`Watcher failed with ${e}`);
 		});
 
-		ctx.subscriptions.push(hotRequire<typeof import("./main")>(
-			module,
-			join(ctx.extensionPath, `${outDir}/main.js`),
-			(x)=>initApp(x.default)
-		));
+		ctx.subscriptions.push(hotReloadExportedItem(App, (x)=>{
+			const y = initApp(x);
+			return { dispose() { y[0].dispose(); y[1].dispose(); } };
+		}));
 	} else {
 		ctx.subscriptions.push(...initApp(App));
 	}

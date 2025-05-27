@@ -7,7 +7,7 @@ import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
 import { crosshairCursor, drawSelection, dropCursor, EditorView, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers, rectangularSelection, ViewUpdate } from "@codemirror/view";
 import { EditorState, Text as CMText, ChangeSet, Extension } from "@codemirror/state";
 import { unifiedMergeView } from "@codemirror/merge";
-import { Switch } from "@nextui-org/switch";
+import { Switch } from "@heroui/switch";
 
 type TestSource = {
 	value: string|null,
@@ -142,12 +142,12 @@ export const baseExt = (err: boolean, readOnly: boolean, theme: Theme) => [
 		...searchKeymap,
 		...historyKeymap
 	]),
-	...readOnly ? [
+	...(readOnly ? [
 		EditorState.readOnly.of(true)
 	] : [
 		history(),
 		dropCursor()
-	]
+	])
 ];
 
 type EditorType = { type: "err" } | { type: "out" } | { type: "edit", onc: (x: ViewUpdate)=>void };
@@ -163,9 +163,9 @@ const bases: Record<Theme, Record<EditorType["type"], Extension>> = {
 
 export const exts = ({type, onc, theme}: EditorType&{onc?: (x: ViewUpdate)=>void, theme: Theme}) => [
 	bases[theme][type],
-	...onc!=undefined ? [
+	...(onc!=undefined ? [
 		EditorView.updateListener.of(onc),
-	] : []
+	] : [])
 ];
 
 const oldExecCmd = document.execCommand.bind(document);
@@ -208,10 +208,10 @@ export function CMReadOnly({v, err, original}: {v: string, err?: boolean, origin
 			doc: v,
 			extensions: [
 				exts({type: err ? "err" : "out", theme}),
-				...original ? unifiedMergeView({
+				...(original ? unifiedMergeView({
 					mergeControls: false,
 					original
-				}) : []
+				}) : [])
 			],
 		});
 
@@ -538,6 +538,6 @@ export const RunStats = ({x}: {x: RunStatProps}) => <Text v="dim" >
 		`${x.wallTime!=null ? (x.wallTime/1000).toFixed(3) : "?"} s (wall)`,
 		`${x.cpuTime!=null ? (x.cpuTime/1000).toFixed(3) : "?"} s (cpu)`,
 		`${x.mem!=null ? Math.ceil(x.mem) : "?"} MB`,
-		...x.exitCode ? [`exit code ${x.exitCode}`] : []
+		...(x.exitCode ? [`exit code ${x.exitCode}`] : [])
 	].join(", ")}
 </Text>;

@@ -1,19 +1,42 @@
-.mycodicon {
-	font: normal normal normal 16px/1 codicon;
-	display: inline-block;
-	text-decoration: none;
-	text-rendering: auto;
-	text-align: center;
-	-webkit-font-smoothing: antialiased;
-	-moz-osx-font-smoothing: grayscale;
-	user-select: none;
-	-webkit-user-select: none;
-	-ms-user-select: none;
+@import 'tailwindcss';
+@plugin './heroui.ts';
+@source '../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}';
+
+@layer base {
+  .mycodicon {
+    font: normal normal normal 16px/1 codicon;
+    display: inline-block;
+    text-decoration: none;
+    text-rendering: auto;
+    text-align: center;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    user-select: none;
+    -webkit-user-select: none;
+    -ms-user-select: none;
+  }
 }
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@font-face {
+  font-family: 'Chivo';
+  src: url("../resources/Chivo.ttf") format('truetype');
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url("../resources/Inter.ttf") format('truetype');
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+@custom-variant theme (&:is(.dark *,.light *));
+
+@theme {
+  --font-body: "Inter", sans-serif;
+  --font-display: "Chivo", sans-serif;
+  --color-zinc-150: #f0f0f2;
+  --color-zinc-850: #1e1e21;
+  --breakpoint-xs: 350px;
+}
 
 html, body {
 	width: 100% !important;

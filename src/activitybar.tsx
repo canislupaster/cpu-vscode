@@ -4,7 +4,7 @@ import { Anchor, AppTooltip, bgColor, Button, Card, Divider, DragHandle, dragTCs
 import { useMemo, useState } from "react";
 import { TestCaseFile, TestCaseOutput, useTestSource, useTestCases, SetProgram, RunStats, TestErr, TestSetStatus, DiffContextProvider } from "./testcase";
 import { Collapse } from "react-collapse";
-import { Progress } from "@nextui-org/progress";
+import { Progress } from "@heroui/progress";
 import { twMerge } from "tailwind-merge";
 
 function SmallTestCaseEditor({i,test}: {i: number}&TestCaseI) {

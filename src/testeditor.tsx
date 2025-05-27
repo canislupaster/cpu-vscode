@@ -4,8 +4,8 @@ import { Alert, Anchor, appInit, AppModal, bgColor, Button, Card, Divider, DragH
 import { Collapse } from "react-collapse";
 import React from "react";
 import { TestCaseFile, TestCaseOutput, useTestSource, useTestCases, RunStats, TestErr, DiffContextProvider } from "./testcase";
-import { Checkbox } from "@nextui-org/checkbox";
-import { ModalBody, ModalContent, ModalFooter, ModalHeader, useDisclosure } from "@nextui-org/modal";
+import { Checkbox } from "@heroui/checkbox";
+import { ModalBody, ModalContent, ModalFooter, ModalHeader, useDisclosure } from "@heroui/modal";
 import { LanguageConfig } from "./languages";
 
 const Verdict = ({x}: {x: TestResult}) => <div className="flex flex-col items-end" >
@@ -314,7 +314,7 @@ function App() {
 				</div>
 				<Text>Memory limit (MB)</Text>
 				<div className="flex flex-row items-center gap-2" >
-					<Input type="number" defaultValue={tc.runCfg.ml ?? ""} step={16} min={16}
+					<Input type="number" defaultValue={tc.runCfg.ml ?? ""} step={1} min={16}
 						onChange={numericInputChange("memory limit", "ml", true, undefined)} ></Input>
 					{tc.runCfg.ml!=undefined && <IconButton icon={<Icon icon="close" />} onClick={()=>modCfg({ml:undefined})} />}
 				</div>

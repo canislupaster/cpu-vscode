@@ -43,7 +43,7 @@ async function main() {
 
   await mkdir(outDir, {recursive: true});
 
-  await start(`npx tailwindcss -i ./src/main.css -o ./${outDir}/output.css`, "--watch", "tailwind");
+  await start(`npx @tailwindcss/cli -i ./src/main.css -o ./${outDir}/output.css`, "--watch", "tailwind");
   await start("npx tsc --project ./tsconfig.json", "--watch --preserveWatchOutput", "tsc");
 
   /**
