@@ -3,7 +3,7 @@ import "../node_modules/@vscode/codicons/dist/codicon.css";
 import { Popover, PopoverContent, PopoverTrigger } from "@heroui/popover";
 import { twMerge } from "tailwind-merge";
 import { Spinner, SpinnerProps } from "@heroui/spinner";
-import React, { AnchorHTMLAttributes, createContext, forwardRef, HTMLAttributes, JSX, PointerEvent, useContext, useEffect, useImperativeHandle, useRef, useState } from "react";
+import React, { AnchorHTMLAttributes, createContext, forwardRef, HTMLAttributes, JSX, PointerEvent, useContext, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 import { Tooltip, TooltipPlacement } from "@heroui/tooltip";
 import { HeroUIProvider } from "@heroui/system";
 import { InitState, MessageFromExt, MessageToExt, SetStateMessage, TestResult, Theme } from "./shared";
@@ -38,7 +38,7 @@ export const borderColor = {
 };
 
 export const outlineColor = {
-	default: "active:outline focus:outline theme:outline-2 focus:theme:outline-blue-500 active:theme:outline-blue-500 theme:outline-offset-[-2px]"
+	default: "active:outline-2 focus:outline-2 focus:theme:outline-blue-500 active:theme:outline-blue-500 theme:outline-offset-[-2px]"
 };
 
 const containerDefault = `${textColor.default} ${bgColor.default} ${borderColor.default} ${outlineColor.default}`;
@@ -231,7 +231,7 @@ export function Dropdown({parts, trigger, onOpenChange, open, setOpen}: {
 				{parts.map((x,i) => {
 					if (x.type=="act")
 						return <Button key={x.key ?? i} disabled={x.disabled}
-							className={`m-0 dark:border-zinc-700 border-zinc-300 border-t-0 first:border-t rounded-none first:rounded-t-md last:rounded-b-md dark:hover:bg-zinc-700 hover:bg-zinc-300 w-full hover:outline hover:outline-1 not-focus:hover:dark:outline-zinc-600 not-focus:hover:outline-zinc-400 ${
+							className={`m-0 dark:border-zinc-700 border-zinc-300 border-t-0 first:border-t rounded-none first:rounded-t-md last:rounded-b-md dark:hover:bg-zinc-700 hover:bg-zinc-300 w-full hover:outline-1 not-focus:hover:dark:outline-zinc-600 not-focus:hover:outline-zinc-400 ${
 								x.active ? "dark:bg-zinc-950 bg-zinc-200" : ""
 							} ${outlineColor.default}`}
 							onBlur={(x.key??i)==keySel ? ()=>setFocusSel(false) : undefined}
@@ -277,15 +277,15 @@ function Wrapper({children,className,...props}: {children: React.ReactNode}&HTML
 	useMessage((msg) => {
 		if (msg.type=="themeChange") setTheme(msg.newTheme);
 	});
-
-	useEffect(() => {
+	
+	useLayoutEffect(() => {
 		const html = document.getElementsByTagName("html")[0];
 		html.classList.add(theme);
 		return () => html.classList.remove(theme);
 	}, [theme])
 
 	return <div ref={root}
-		className={twMerge("font-body dark:text-gray-100 dark:bg-zinc-900 text-gray-950 bg-zinc-100 min-h-dvh",className)}
+		className={twMerge("font-body dark:text-gray-100 text-gray-950", className)}
 		{...props} >
 
 		<AppCtx.Provider value={{
@@ -501,10 +501,10 @@ export const useUIState = <T extends object>(defaultUIState: T) => ({
 });
 
 export function render(component: React.FunctionComponent) {
-	window.addEventListener("DOMContentLoaded", ()=>
-		createRoot(document.getElementById("root")!).render(<Wrapper>
-			{React.createElement(component)}
-		</Wrapper>));
+	createRoot(document.getElementById("root")!).render(<Wrapper>
+		{React.createElement(component)}
+	</Wrapper>);
+	document.getElementById("_defaultStyles")?.remove();
 }
 
 export const toSearchString = (x: string) => x.toLowerCase().replaceAll(" ","");

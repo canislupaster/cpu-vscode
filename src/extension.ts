@@ -1,15 +1,22 @@
-import { commands, ExtensionContext, window, Disposable, EventEmitter, CancellationTokenSource, CancellationError } from "vscode";
 import { enableHotReload } from "@hediet/node-reload/node";
+import { Module } from "node:module";
+
+declare const WATCH: boolean;
+if (WATCH) enableHotReload({entryModule: import.meta as unknown as Module});
+
+import { commands, ExtensionContext, window, Disposable, EventEmitter, CancellationTokenSource, CancellationError } from "vscode";
+
 import App from "./main";
 import { join } from "path";
 import { FileChangeInfo, watch } from "fs/promises";
 import { MessageFromExt } from "./shared";
-import { cancelPromise, CPUWebviewProvider, exists, outDir } from "./util";
+import { cancelPromise, CPUWebviewProvider, exists, getChunks, outDir } from "./util";
 import { hotReloadExportedItem } from "@hediet/node-reload";
 
-declare const WATCH: boolean;
+export async function activate(ctx: ExtensionContext) {
+	const chunks = await getChunks(ctx);
+	ctx.globalState.update("chunks", chunks);
 
-export function activate(ctx: ExtensionContext) {
 	const log = window.createOutputChannel("Competitive Programmers Union", {log: true});
 	ctx.subscriptions.push(log);
 
@@ -28,18 +35,20 @@ export function activate(ctx: ExtensionContext) {
 	);
 
 	const initApp = (x: typeof App) => {
-		const app = new x(ctx, log);
+		const app = new x(ctx, chunks, log);
 		activity.app=app; panel.app=app;
 		return [app.onMessage((x)=>onMessage.fire(x)), app] as const;
 	};
 
 	if (WATCH) {
-		enableHotReload({entryModule: module});
 		log.info("hot reloading enabled");
 		
 		(async () => {
 			const files = [
-				...["activitybar","panel","testeditor"].flatMap(x=>[`${outDir}/${x}.js`, `${outDir}/${x}.css`]),
+				...["activitybar","panel","testeditor"].flatMap(x=>[
+					`${outDir}/${x}.js`, `${outDir}/${x}.css`
+				]),
+				...chunks.map(p=>join(outDir,p)),
 				`${outDir}/output.css`
 			].map(x=>join(ctx.extensionPath, x));
 

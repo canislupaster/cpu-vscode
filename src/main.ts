@@ -140,15 +140,13 @@ export default class App {
 	checkActive() {
 		const e = window.activeTextEditor;
 
-		if (e?.document.uri.scheme=="file") {
-			this.currentFile=resolve(e.document.fileName);
+		if (e?.document.uri.scheme!="file") return;
 
-			if (this.cases.file==null) {
-				const ext = extname(e.document.uri.fsPath);
-				if (this.languages.allExts.some(x=>ext.endsWith(x)))
-					this.updateProgram();
-			}
-		}
+		const ext = extname(e.document.uri.fsPath);
+		if (!this.languages.allExts.some(x=>ext.endsWith(x))) return;
+
+		this.currentFile=resolve(e.document.fileName);
+		if (this.cases.file==null) this.updateProgram();
 	}
 
 	needsReload: boolean=false;
@@ -228,7 +226,7 @@ export default class App {
 	}
 
 	lastFocus=Date.now();
-	constructor(public ctx: ExtensionContext, public log: LogOutputChannel) {
+	constructor(public ctx: ExtensionContext, public chunks: string[], public log: LogOutputChannel) {
 		log.info(`Initializing... extension uri: ${ctx.extensionUri.toString()}`);
 
 		this.testEditor.app = this;

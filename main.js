@@ -1,5 +1,6 @@
-module.exports.activate=(ctx)=>{
-	const vscode = require("vscode");
-	const path = ctx.extensionMode==vscode.ExtensionMode.Production ? "dist/extension.js" : "out/extension.js";
-	return require(require("path").join(ctx.extensionUri.fsPath,path)).activate(ctx);
+import { ExtensionMode } from "vscode";
+import { join } from "node:path";
+export async function activate(ctx) {
+	const path = ctx.extensionMode==ExtensionMode.Production ? "dist/extension.js" : "out/extension.js";
+	import(join(ctx.extensionUri.fsPath, path)).then(mod=>mod.activate(ctx));
 }

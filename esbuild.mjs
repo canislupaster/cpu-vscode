@@ -75,6 +75,8 @@ async function main() {
     sourcemap: !production,
     sourcesContent: !production,
     platform,
+    format: "esm",
+    splitting: true,
     loader: {
       ".ttf": "file",
       ".node": "file",
@@ -85,7 +87,13 @@ async function main() {
       WATCH: watch ? "true" : "false",
       PROD: production ? "true" : "false"
     },
-    plugins: [ esbuildProblemMatcherPlugin(name) ]
+    plugins: [ esbuildProblemMatcherPlugin(name) ],
+    banner: platform=="browser" ? undefined : {
+      js: `
+        import { createRequire } from 'module';
+        const require = createRequire(import.meta.url);
+      `
+    },
   });
 
   await Promise.race([

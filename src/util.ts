@@ -1,12 +1,17 @@
-import { stat } from "node:fs/promises";
-import { WebviewViewProvider, Event, WebviewView, CancellationToken, Uri, WebviewPanel, CancellationError } from "vscode";
+import { readdir, stat } from "node:fs/promises";
+import { WebviewViewProvider, Event, WebviewView, CancellationToken, Uri, WebviewPanel, CancellationError, ExtensionContext } from "vscode";
 import { InitState, MessageFromExt, MessageToExt, SetStateMessage } from "./shared";
 import App from "./main";
 import { parse } from "shell-quote";
 import { createServer } from "node:net";
+import { join } from "node:path";
 
 declare const PROD: boolean;
 export const outDir = PROD ? "dist" : "out";
+
+export const getChunks = async (ctx: ExtensionContext) =>
+	(await readdir(join(ctx.extensionPath, outDir)))
+		.filter(x=>x.startsWith("chunk-") && x.endsWith(".js"));
 
 export const delay = (x: number) => new Promise<void>((res)=>setTimeout(res, x));
 export const exists = (path: string) => stat(path).then(()=>true, ()=>false);
@@ -67,7 +72,11 @@ export class CPUWebviewProvider implements WebviewViewProvider {
 		const init: InitState = this.app.getInitState();
 
 		const uri = (x: string,resource=false)=>
-			webview.asWebviewUri(Uri.joinPath(this.app!.ctx.extensionUri, resource ? "resources" : outDir, x)).toString();
+			webview.asWebviewUri(Uri.joinPath(
+				this.app!.ctx.extensionUri, resource ? "resources" : outDir, x
+			)).toString();
+
+		const importMap = {imports: Object.fromEntries(this.app.chunks.map(c=>[`./${c}`, uri(c)]))};
 
 		const uiStateKey = `${this.src}-webviewState`;
 
@@ -91,14 +100,20 @@ export class CPUWebviewProvider implements WebviewViewProvider {
 
 	<link rel="stylesheet" href="${uri(`${this.src}.css`)}" />
 	<link rel="stylesheet" href="${uri("output.css")}" />
+
 	<script>
 		const init = ${JSON.stringify(init)};
 		let uiState=${JSON.stringify(this.app.ctx.globalState.get(uiStateKey))};
 	</script>
-	<script src="${uri(`${this.src}.js`)}" ></script>
+	
+	<script type="importmap" >
+		${JSON.stringify(importMap)}
+	</script>
+	<script type="module" src="${uri(`${this.src}.js`)}" ></script>
 </head>
 <body>
-	<div id="root" ></div>
+	<div id="root" >
+	</div>
 </body>
 </html>`;
 		

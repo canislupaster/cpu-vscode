@@ -142,11 +142,11 @@ export class TestCases {
 		this.disableSave=false;
 	}
 
-	timeout?: NodeJS.Timeout;
+	timeout: NodeJS.Timeout|null=null;
 	async save() {
-		if (this.timeout) {
+		if (this.timeout!=null) {
 			clearTimeout(this.timeout);
-			delete this.timeout;
+			this.timeout=null;
 		}
 
 		this.log.info("Saving tests...");
@@ -162,7 +162,7 @@ export class TestCases {
 
 	disableSave: boolean=false;
 	saveSoon() {
-		if (this.timeout) clearTimeout(this.timeout);
+		if (this.timeout!=null) clearTimeout(this.timeout);
 		if (this.disableSave) return;
 		this.timeout = setTimeout(()=>void this.save(), 5000);
 	}
@@ -945,6 +945,6 @@ export class TestCases {
 		this.runAllCancel.cancel?.cancel();
 		for (const c of Object.values(this.cases))
 			c?.cancel?.cancel();
-		void this.save();
+		if (this.timeout!=null) void this.save();
 	}
 }
