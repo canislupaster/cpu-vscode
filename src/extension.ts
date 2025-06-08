@@ -1,17 +1,11 @@
-import { enableHotReload } from "@hediet/node-reload/node";
-import { Module } from "node:module";
-
-declare const WATCH: boolean;
-if (WATCH) enableHotReload({entryModule: import.meta as unknown as Module});
-
-import { commands, ExtensionContext, window, Disposable, EventEmitter, CancellationTokenSource, CancellationError } from "vscode";
-
 import App from "./main";
+import { commands, ExtensionContext, window, Disposable, EventEmitter, CancellationTokenSource, CancellationError } from "vscode";
 import { join } from "path";
 import { FileChangeInfo, watch } from "fs/promises";
 import { MessageFromExt } from "./shared";
 import { cancelPromise, CPUWebviewProvider, exists, getChunks, outDir } from "./util";
-import { hotReloadExportedItem } from "@hediet/node-reload";
+
+declare const WATCH: boolean;
 
 export async function activate(ctx: ExtensionContext) {
 	const chunks = await getChunks(ctx);
@@ -26,29 +20,31 @@ export async function activate(ctx: ExtensionContext) {
 	const activity = new CPUWebviewProvider("activitybar", onMessage.event, ["testCaseStream"]);
 	const panel = new CPUWebviewProvider("panel", onMessage.event);
 
-	ctx.subscriptions.push(
-		window.registerWebviewViewProvider("cpu.activitybar", activity,
-			{webviewOptions: {retainContextWhenHidden: true}}),
-		window.registerWebviewViewProvider("cpu.panel", panel,
-			{webviewOptions: {retainContextWhenHidden: true}}),
-		activity, panel
-	);
-
+	let old: Disposable[]=[];
 	const initApp = (x: typeof App) => {
+		if (old.length) {
+			old.forEach(x=>void x.dispose());
+			old=[]; // in case of failure
+		}
+
+		log.info("(re)loading app");
 		const app = new x(ctx, chunks, log);
 		activity.app=app; panel.app=app;
-		return [app.onMessage((x)=>onMessage.fire(x)), app] as const;
+
+		old=[app.onMessage((x)=>onMessage.fire(x)), app];
 	};
 
 	if (WATCH) {
 		log.info("hot reloading enabled");
 		
 		(async () => {
+			const mainName = "main.js";
 			const files = [
 				...["activitybar","panel","testeditor"].flatMap(x=>[
 					`${outDir}/${x}.js`, `${outDir}/${x}.css`
 				]),
 				...chunks.map(p=>join(outDir,p)),
+				join(outDir, mainName),
 				`${outDir}/output.css`
 			].map(x=>join(ctx.extensionPath, x));
 
@@ -68,12 +64,19 @@ export async function activate(ctx: ExtensionContext) {
 
 			const cancel = new CancellationTokenSource();
 
+			let mainChanged = false;
 			const act = () => {
-				log.info("reloading webviews");
 				if (tm) clearTimeout(tm);
+
 				tm=setTimeout(()=>{
-					commands.executeCommand("workbench.action.webview.reloadWebviewAction");
-				}, 2000);
+					if (mainChanged) {
+						log.info("reloading window");
+						commands.executeCommand("workbench.action.reloadWindow");
+					} else {
+						log.info("reloading webviews");
+						commands.executeCommand("workbench.action.webview.reloadWebviewAction");
+					}
+				}, 500);
 			};
 
 			log.info(`Starting watch for ${watchers.length} files`);
@@ -85,6 +88,7 @@ export async function activate(ctx: ExtensionContext) {
 				unresolved[i] = watchers[i].next().then(v=>[v.value, i]);
 
 				log.info(`${x.filename} changed`);
+				mainChanged ||= x.filename==mainName;
 				if (window.state.focused) {
 					act();
 				} else if (unseen==null) {
@@ -102,12 +106,16 @@ export async function activate(ctx: ExtensionContext) {
 			if (e instanceof Error) log.error(e);
 			window.showErrorMessage(`Watcher failed with ${e}`);
 		});
-
-		ctx.subscriptions.push(hotReloadExportedItem(App, (x)=>{
-			const y = initApp(x);
-			return { dispose() { y[0].dispose(); y[1].dispose(); } };
-		}));
-	} else {
-		ctx.subscriptions.push(...initApp(App));
 	}
+
+	initApp(App);
+
+	ctx.subscriptions.push(
+		window.registerWebviewViewProvider("cpu.activitybar", activity,
+			{webviewOptions: {retainContextWhenHidden: true}}),
+		window.registerWebviewViewProvider("cpu.panel", panel,
+			{webviewOptions: {retainContextWhenHidden: true}}),
+		activity, panel,
+		{ dispose() { old.forEach(x=>void x.dispose()); } }
+	);
 }

@@ -75,7 +75,10 @@ export function useTestCases() {
 			case "updateProgram": setState(s=>({...s, openFile: msg.openFile})); break;
 			case "updateLanguagesCfg": setState(s=>({...s, languagesCfg: msg.cfg})); break;
 			case "updateRunState": setRun(msg.run); break;
-			case "updateTestSets": setState(s=>({...s, currentTestSet: msg.current, testSets: msg.sets})); break;
+			case "updateTestSets": setState(s=>({
+				...s, currentTestSet: msg.current, testSets: msg.sets,
+				autoSubmitSupported: msg.autoSubmitSupported
+			})); break;
 		}
 	});
 

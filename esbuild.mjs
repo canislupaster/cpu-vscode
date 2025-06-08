@@ -67,7 +67,7 @@ async function main() {
     }
   });
 
-  const makeCtx = (name, entryPoints, platform) => esbuild.context({
+  const makeCtx = (name, entryPoints, platform, split=true) => esbuild.context({
     entryPoints,
     bundle: true,
     outdir: outDir,
@@ -76,7 +76,7 @@ async function main() {
     sourcesContent: !production,
     platform,
     format: "esm",
-    splitting: true,
+    splitting: split,
     loader: {
       ".ttf": "file",
       ".node": "file",
@@ -98,7 +98,8 @@ async function main() {
 
   await Promise.race([
     makeCtx("webviews", ["src/activitybar.tsx", "src/panel.tsx", "src/testeditor.tsx"], "browser"),
-    makeCtx("extension", ["src/extension.ts", "src/main.ts"], "node")
+    makeCtx("extension", ["src/extension.ts", "src/main.ts"], "node"),
+    makeCtx("inject", ["src/inject.ts"], "browser")
   ].map(async ctx => {
     const a = await ctx;
     if (watch) {

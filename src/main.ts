@@ -7,6 +7,7 @@ import { Companion } from "./companion";
 import { LanguageProvider } from "./languages";
 import { copyFile, mkdir, writeFile } from "fs/promises";
 import Mustache from "mustache";
+import { AutoSubmit } from "./autosubmit";
 
 type AllTestSets = {
 	nextId: number,
@@ -34,6 +35,7 @@ export default class App {
 	languages: LanguageProvider;
 	cases: TestCases;
 	ts: AllTestSets;
+	autosubmit: AutoSubmit;
 	deleted: Record<number,boolean> = {};
 	private openTestEditor?: WebviewPanel;
 
@@ -77,6 +79,11 @@ export default class App {
 		return this.cases.file!=null ? {type: "file", path: this.cases.file}
 			: this.currentFile!=null ? {type: "last", path: this.currentFile} : null;
 	}
+	
+	autoSubmitSupported() {
+		const link = this.ts.sets[this.ts.current].problemLink;
+		return link!=undefined && this.autosubmit.isSupported(link);
+	}
 
 	getInitState = (): InitState => ({
 		runCfg: this.cases.cfg, cfg: this.cfg,
@@ -87,13 +94,18 @@ export default class App {
 		testSets: this.ts.sets, currentTestSet: this.ts.current,
 		languagesCfg: this.languages.getLangsCfg(),
 		buildDir: this.cases.runner.getBuildDir(), testSetDir: this.cases.getTestsetDir(),
-		theme: this.themeKindMap.get(window.activeColorTheme.kind)!
+		theme: this.themeKindMap.get(window.activeColorTheme.kind)!,
+		autoSubmitSupported: this.autoSubmitSupported()
 	});
 
 	async upTestSet(mod: boolean=true) {
 		if (mod) this.ts.sets[this.ts.current].mod=Date.now();
 
-		this.send({type: "updateTestSets", current: this.ts.current, sets: this.ts.sets});
+		this.send({
+			type: "updateTestSets",
+			current: this.ts.current, sets: this.ts.sets,
+			autoSubmitSupported: this.autoSubmitSupported()
+		});
 		await this.ctx.globalState.update("testsets", this.ts);
 	}
 
@@ -290,9 +302,11 @@ export default class App {
 		this.languages = new LanguageProvider(this.config, this.onCfgChange);
 		this.cases = new TestCases(ctx, log, (x)=>this.send(x), this.ts.current,
 			()=>this.upTestSet(), this.panelReady.event, this.languages, this.cfg);
+		this.autosubmit = new AutoSubmit(this, this.languages);
 
 		this.toDispose.push(
-			this.languages, this.cases, workspace.onDidSaveTextDocument((e) => {
+			this.languages, this.cases, this.autosubmit,
+			workspace.onDidSaveTextDocument((e) => {
 				if (e.uri.scheme=="file") {
 					const tc = this.cases.fileToCase.get(resolve(e.fileName));
 					if (tc) this.cases.reloadTestSource(tc.case).catch((e)=>this.handleErr(e));
@@ -433,6 +447,13 @@ export default class App {
 			importTests: async ()=>{ await this.cases.importCases(); },
 			createTestCase: async ()=>{ await this.cases.createTest(); },
 			removeTestCase: async ({i})=>{ await this.cases.removeTest(i); },
+			autosubmit: async ()=>{
+				const link = this.ts.sets[this.ts.current].problemLink;
+				if (link==undefined) throw new Error("No problem link!");
+				const path = await this.runPath();
+				if (path==null) throw new Error("No file provided");
+				await this.autosubmit.submit(link, path);
+			},
 			testCaseInput: async ({inp})=>{
 				if (this.cases.run.runningTest==undefined || !(this.cases.run.runningTest in this.cases.inputs))
 					throw new Error("Can't input; program is not running");

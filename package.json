@@ -80,14 +80,20 @@
         },
         "cpu.runtime": {
           "type": "object",
-          "additionalProperties": [
-            "c++",
-            "java",
-            "python",
-            "rust"
-          ],
+          "additionalProperties": false,
           "description": "Per-language runtime paths",
-          "default": {}
+          "properties": {
+            "java": {
+              "type": "string"
+            },
+            "python": {
+              "type": "string"
+            }
+          },
+          "default": {
+            "java": "",
+            "python": ""
+          }
         },
         "cpu.compiler": {
           "type": "object",
@@ -99,9 +105,6 @@
             "java": {
               "type": "string"
             },
-            "python": {
-              "type": "string"
-            },
             "rust": {
               "type": "string"
             }
@@ -110,7 +113,6 @@
           "default": {
             "c++": "",
             "java": "",
-            "python": "",
             "rust": ""
           }
         },
@@ -125,18 +127,27 @@
             "java": {
               "type": "string"
             },
-            "python": {
-              "type": "string"
-            },
             "rust": {
               "type": "string"
             }
           },
           "default": {
             "java": "",
-            "python": "",
             "c++": "-O2",
             "rust": "-C opt-level=2"
+          }
+        },
+        "cpu.clangdOverride": {
+          "description": "Override clangd compile flags",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "c++": {
+              "type": "string"
+            }
+          },
+          "default": {
+            "c++": ""
           }
         },
         "cpu.compileArgs.debug": {
@@ -150,16 +161,12 @@
             "java": {
               "type": "string"
             },
-            "python": {
-              "type": "string"
-            },
             "rust": {
               "type": "string"
             }
           },
           "default": {
             "java": "",
-            "python": "",
             "c++": "-O0 -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC",
             "rust": "-g -C debug-assertions=on"
           }
@@ -175,16 +182,12 @@
             "java": {
               "type": "string"
             },
-            "python": {
-              "type": "string"
-            },
             "rust": {
               "type": "string"
             }
           },
           "default": {
             "java": "-g",
-            "python": "",
             "rust": "",
             "c++": "-Wall -std=c++20 -g"
           }
@@ -205,6 +208,11 @@
             "GDB on Windows, CodeLLDB otherwise"
           ],
           "default": "auto"
+        },
+        "cpu.autosubmitPort": {
+          "type": "number",
+          "default": "8023",
+          "description": "Port for auto submission proxy"
         }
       }
     },
@@ -271,7 +279,6 @@
     "@codemirror/view": "^6.36.8",
     "@eslint/js": "^9.27",
     "@formkit/drag-and-drop": "^0.5",
-    "@hediet/node-reload": "^0.10.0",
     "@heroui/react": "2.8.0-beta.6",
     "@hono/node-server": "^1.14.3",
     "@vscode/codicons": "^0.0.36",
@@ -281,6 +288,7 @@
     "hono": "^4.7.10",
     "mustache": "^4.2.0",
     "pidusage": "^4.0.1",
+    "playwright": "^1.52.0",
     "react": "^19",
     "react-collapse": "^5.1.1",
     "react-dom": "^19",

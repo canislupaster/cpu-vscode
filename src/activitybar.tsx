@@ -113,7 +113,7 @@ const SmallTestCase = React.memo(({test,i,open: openOpt,setOpen,interactive}: Te
 			</div>
 		</Collapse>
 
-		<Button className={`rounded-none rounded-b-md hover:bg-zinc-100 dark:hover:bg-zinc-700 ${bgColor.md}`} icon={<Icon icon={`chevron-${open ? "up" : "down"}`} />}
+		<Button className={`rounded-none border-0 border-t rounded-b-md hover:bg-zinc-100 dark:hover:bg-zinc-700 ${bgColor.md}`} icon={<Icon icon={`chevron-${open ? "up" : "down"}`} />}
 			onClick={()=>setOpen(!open)} >
 		</Button>
 	</Card>;
@@ -173,6 +173,8 @@ function App() {
 				: <Button icon={<Icon icon="run-all" />}
 						onClick={()=>send({type: "runAll"})} className={`${bgColor.green} flex-1`}
 						disabled={tc.ordered.length==0 || tc.run.runAll.cancellable!=null} >Run all</Button>}
+			{tc.autoSubmitSupported && <Button className="flex-1"
+				onClick={()=>send({type: "autosubmit"})} >Submit</Button>}
 		</div>
 
 		<RunAllStatus runAll={tc.run.runAll} />

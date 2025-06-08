@@ -26,10 +26,14 @@ export type Cfg = {
 	createFileTemplate?: string,
 	nProcs: number,
 	testDir?: string,
-	buildDir?: string
+	buildDir?: string,
+	autosubmitPort: number
 };
 
-export const cfgKeys = ["createFiles", "createFileName", "createFileTemplate", "nProcs", "testDir", "buildDir"] as const;
+export const cfgKeys = [
+	"createFiles", "createFileName", "createFileTemplate",
+	"nProcs", "testDir", "buildDir", "autosubmitPort"
+] as const satisfies (keyof Cfg)[];
 
 export const defaultRunCfg: RunCfg = {
 	tl: 10, ml: 512, eof: false, focusTestIO: true,
@@ -89,6 +93,8 @@ export type MessageToExt = {
 	ty: "import"|"create"|"detach"
 } | {
 	type: "setProgram", cmd: "clear"|"open"|"setLast"
+} | {
+	type: "autosubmit"
 } | {
 	type: "testCaseInput", inp: string
 } | {
@@ -206,7 +212,8 @@ export type InitState = {
 	testSets: TestSets,
 	currentTestSet: number,
 	buildDir: string, testSetDir: string,
-	theme: Theme
+	theme: Theme,
+	autoSubmitSupported: boolean,
 };
 
 export type TestOut = {
@@ -253,6 +260,7 @@ export type MessageFromExt = {
 } | {
 	type: "updateTestSets",
 	current: number,
+	autoSubmitSupported: boolean,
 	sets: TestSets
 } | {
 	type: "fileChosen", key: string, path: string

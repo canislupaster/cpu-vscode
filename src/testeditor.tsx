@@ -202,6 +202,7 @@ function LanguageCfg({cfg, language}: {cfg: LanguageConfig, language: string}) {
 			{inp("commonArgs", "Compile arguments")}
 			{inp("fastArgs", "Compile arguments (run only)")}
 			{inp("debugArgs", "Compile arguments (debug only)")}
+			{inp("clangdOverride", "Clangd flags", "(inherit compiler arguments)")}
 
 			<div className="flex flex-col gap-2 col-span-2 items-start" >
 				<Button onClick={()=>send({type: "setLanguageCfgGlobally", language})} >

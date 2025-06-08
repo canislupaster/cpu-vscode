@@ -32,7 +32,8 @@ export type LanguageConfig = {
 	runtime?: string,
 	commonArgs?: string,
 	fastArgs?: string,
-	debugArgs?: string
+	debugArgs?: string,
+	clangdOverride?: string
 };
 
 export type LanguagesConfig = Record<string,LanguageConfig>;
@@ -156,7 +157,9 @@ class CPP extends NativeLanguage {
 	}
 
 	load = async ({extPath, testlib, source, type, cwd}: LanguageLoadOpts) => {
-		const args = [
+		const args = this.cfg.clangdOverride ? [
+			...argsToArr(this.cfg.clangdOverride), source
+		] : [
 			await this.getCompiler(), source,
 			...testlib!=false ? ["-isystem", join(extPath, "testlib")] : [],
 			...this.getArgs(type??null)
@@ -283,16 +286,20 @@ class Rust extends NativeLanguage {
 
 const cfgMap: Record<keyof LanguageConfig, string> = {
 	compiler: "compiler", runtime: "runtime", commonArgs: "compileArgs.common",
-	fastArgs: "compileArgs.fast", debugArgs: "compileArgs.debug"
+	fastArgs: "compileArgs.fast", debugArgs: "compileArgs.debug",
+	clangdOverride: "clangdOverride"
 }
 
 //CRUD
-function loadCfg(config: WorkspaceConfiguration): LanguagesConfig {
+function loadCfg(config: WorkspaceConfiguration, out: LanguagesConfig) {
 	const x=Object.fromEntries(Object.entries(cfgMap).map(([k,v]) => {
 		return [k, config.get<Record<string,string>>(v)];
 	})) as Record<keyof LanguageConfig, Record<string,string>>;
+	
+	for (const lang in out) {
+		for (const k in cfgMap) delete out[lang][k as keyof LanguageConfig];
+	}
 
-	const out: Record<string, LanguageConfig> = {};
 	for (const k in x) {
 		const lk = k as keyof LanguageConfig;
 		for (const lang in x[lk]) {
@@ -306,7 +313,7 @@ function loadCfg(config: WorkspaceConfiguration): LanguagesConfig {
 }
 
 export class LanguageProvider {
-	private cfg: LanguagesConfig;
+	private cfg: LanguagesConfig = {};
 
 	languages: Language[];
 
@@ -316,7 +323,7 @@ export class LanguageProvider {
 	private listener: Disposable;
 
 	constructor(public config: WorkspaceConfiguration, onChangeCfg: Event<WorkspaceConfiguration>) {
-		this.cfg = loadCfg(config);
+		loadCfg(config, this.cfg);
 
 		this.languages = [ CPP, Rust, Python, Java ].map(x=>new x(this.cfg, this));
 
@@ -324,7 +331,7 @@ export class LanguageProvider {
 		this.extToLanguage = Object.fromEntries(this.languages.flatMap(x=>x.exts.map(y=>[`.${y}`,x]))) as Record<string, Language>;
 
 		this.listener = onChangeCfg((nConfig)=>{
-			this.cfg = loadCfg(this.config = nConfig);
+			loadCfg(this.config = nConfig, this.cfg);
 		});
 	}
 
@@ -336,10 +343,14 @@ export class LanguageProvider {
 			const o: LanguageConfig = {};
 
 			if (lang.compile!=undefined) {
-				for (const k of ["compiler","commonArgs","fastArgs","debugArgs"] as (keyof LanguageConfig)[]) {
+				for (const k of [
+					"compiler","commonArgs","fastArgs","debugArgs"
+				] as (keyof LanguageConfig)[]) {
 					o[k] = cfg[k]??"";
 				}
 			}
+				
+			if (lang instanceof CPP) o.clangdOverride=cfg.clangdOverride??"";
 
 			if (lang.run!=undefined) o.runtime=cfg.runtime??"";
 

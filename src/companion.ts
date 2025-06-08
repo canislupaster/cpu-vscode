@@ -4,28 +4,11 @@ import { Hono } from 'hono'
 import { AddressInfo } from "node:net";
 import { delay } from "./util";
 
-// type InputConfiguration={
-//   type: 'stdin' | 'file' | 'regex';
-//   fileName?: string;
-//   pattern?: string;
-// };
-
-// type OutputConfiguration={
-//   type: 'stdout' | 'file';
-//   fileName?: string;
-// };
-
 type Task = {
 	name: string,
 	group: string,
 	url: string,
-	// interactive: boolean,
-	// memoryLimit: number,
-	// timeLimit: number,
 	tests: {input:string, output:string}[],
-	// testType: "single"|"multiNumber",
-	// input: InputConfiguration,
-	// output: OutputConfiguration,
 	batch: {
 		id: string,
 		size: number
