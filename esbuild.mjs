@@ -1,12 +1,13 @@
 import { spawn } from "child_process";
 import * as esbuild from "esbuild";
-import { rm, mkdir, readFile, writeFile } from "fs/promises";
+import { rm, mkdir, readFile, writeFile, copyFile, readdir } from "fs/promises";
 import { getLicenseFileText } from "generate-license-file";
+import { join } from "path";
 
 const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
 //packages not distributed in bundle
-const external = ["vscode", "vscode-languageclient"];
+const external = ["vscode", "vscode-languageclient", "chromium-bidi"];
 
 async function main() {
   const start = async (cmd, watchArgs, name) => {
@@ -67,6 +68,29 @@ async function main() {
     }
   });
 
+  /**
+   * @type {import('esbuild').Plugin}
+   */
+  const playwrightFixer = {
+    name: 'playwright-fixer',
+
+    setup(build) {
+      build.onEnd(async () => {
+        await copyFile("node_modules/playwright/package.json", join(outDir, "playwright-package.json"));
+        for (const file of await readdir(outDir, {withFileTypes: true})) {
+          if (file.name.endsWith(".js")) {
+            const path = join(file.parentPath, file.name);
+            const txt = await readFile(path, "utf-8");
+            // fucking hell man
+            const newTxt = txt.replaceAll(`"../../../package.json"`, `"./playwright-package.json"`);
+            await writeFile(path, newTxt);
+          }
+        }
+      });
+    }
+  };
+
+
   const makeCtx = (name, entryPoints, platform, split=true) => esbuild.context({
     entryPoints,
     bundle: true,
@@ -87,11 +111,12 @@ async function main() {
       WATCH: watch ? "true" : "false",
       PROD: production ? "true" : "false"
     },
-    plugins: [ esbuildProblemMatcherPlugin(name) ],
+    plugins: [ esbuildProblemMatcherPlugin(name), playwrightFixer ],
     banner: platform=="browser" ? undefined : {
       js: `
         import { createRequire } from 'module';
         const require = createRequire(import.meta.url);
+        const __dirname = import.meta.dirname;
       `
     },
   });
@@ -99,7 +124,6 @@ async function main() {
   await Promise.race([
     makeCtx("webviews", ["src/activitybar.tsx", "src/panel.tsx", "src/testeditor.tsx"], "browser"),
     makeCtx("extension", ["src/extension.ts", "src/main.ts"], "node"),
-    makeCtx("inject", ["src/inject.ts"], "browser")
   ].map(async ctx => {
     const a = await ctx;
     if (watch) {

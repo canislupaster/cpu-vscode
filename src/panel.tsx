@@ -26,7 +26,7 @@ const styles: Record<Message["which"], [string, string, string]> = {
 for (const k in styles) {
 	const s = styles[k as Message["which"]];
 	s[0] = `${s[0]} px-1`;
-	s[1] = `${s[1]} border-r text-right text-gray-800 dark:text-gray-200 dark:border-r-zinc-600 border-r-zinc-200 pr-1 whitespace-nowrap select-none`;
+	s[1] = `${s[1]} border-r text-right text-gray-800 dark:text-gray-200 dark:border-r-zinc-600 border-r-zinc-200 pr-1 whitespace-nowrap select-none pl-1`;
 }
 
 type UIState = {

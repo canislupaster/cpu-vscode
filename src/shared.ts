@@ -27,12 +27,16 @@ export type Cfg = {
 	nProcs: number,
 	testDir?: string,
 	buildDir?: string,
-	autosubmitPort: number
+
+	browserType: "firefox" | "chromium",
+	browserPath: string,
+	browserProfileDir: string
 };
 
 export const cfgKeys = [
 	"createFiles", "createFileName", "createFileTemplate",
-	"nProcs", "testDir", "buildDir", "autosubmitPort"
+	"nProcs", "testDir", "buildDir", "browserType",
+	"browserPath", "browserProfileDir"
 ] as const satisfies (keyof Cfg)[];
 
 export const defaultRunCfg: RunCfg = {
@@ -127,12 +131,14 @@ export type MessageToExt = {
 	type: "setLanguageCfgGlobally", language: string
 } | {
 	type: "panelReady"
+} | {
+	type: "closeAutoSubmit", submitter: number
 };
 
 export type SetStateMessage = {type: "setUIState", newState: object};
 
 export type TestResult = {
-	verdict: "AC"|"RE"|"TL"|"ML"|"WA"|"INT",
+	verdict: "AC"|"RE"|"TL"|"ML"|"WA"|"INT"|"CE",
 	wallTime: number|null, cpuTime: number|null,
 	mem: number|null, exitCode: number|null
 };
@@ -214,6 +220,7 @@ export type InitState = {
 	buildDir: string, testSetDir: string,
 	theme: Theme,
 	autoSubmitSupported: boolean,
+	autoSubmitterStatus: AutoSubmitUpdateWhen[]
 };
 
 export type TestOut = {
@@ -222,6 +229,27 @@ export type TestOut = {
 };
 
 export type Checker = {type: "file", path: string}|{type: "default", name: string};
+
+export type AutoSubmitUpdate = ({
+	type: "verdict",
+	verdict: TestResult["verdict"],
+} | {
+	type: "testing"|"submitting"|"closed",
+} | {
+	type: "error",
+	error: Error
+})&{
+	testCase?: number,
+	link?: string
+};
+
+export type AutoSubmitUpdateWhen = AutoSubmitUpdate&{
+	id: number,
+	// epoch, milliseconds
+	when: number,
+	name: string,
+	problemLink: string
+};
 
 export type MessageFromExt = {
 	type: "updateTestCases",
@@ -266,4 +294,6 @@ export type MessageFromExt = {
 	type: "fileChosen", key: string, path: string
 } | {
 	type: "themeChange", newTheme: Theme
+} | {
+	type: "updateAutoSubmitStatus", status: AutoSubmitUpdateWhen[]
 };

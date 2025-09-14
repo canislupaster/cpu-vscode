@@ -81,8 +81,10 @@ export default class App {
 	}
 	
 	autoSubmitSupported() {
-		const link = this.ts.sets[this.ts.current].problemLink;
-		return link!=undefined && this.autosubmit.isSupported(link);
+		return false;
+		// enable when supported...
+		// const link = this.ts.sets[this.ts.current].problemLink;
+		// return link!=undefined && this.autosubmit.isSupported(link);
 	}
 
 	getInitState = (): InitState => ({
@@ -95,7 +97,8 @@ export default class App {
 		languagesCfg: this.languages.getLangsCfg(),
 		buildDir: this.cases.runner.getBuildDir(), testSetDir: this.cases.getTestsetDir(),
 		theme: this.themeKindMap.get(window.activeColorTheme.kind)!,
-		autoSubmitSupported: this.autoSubmitSupported()
+		autoSubmitSupported: this.autoSubmitSupported(),
+		autoSubmitterStatus: this.autosubmit.status()
 	});
 
 	async upTestSet(mod: boolean=true) {
@@ -306,6 +309,9 @@ export default class App {
 
 		this.toDispose.push(
 			this.languages, this.cases, this.autosubmit,
+			this.autosubmit.autoSubmitterUpdates.event(()=>{
+				this.send({ type: "updateAutoSubmitStatus", status: this.autosubmit.status() });
+			}),
 			workspace.onDidSaveTextDocument((e) => {
 				if (e.uri.scheme=="file") {
 					const tc = this.cases.fileToCase.get(resolve(e.fileName));
@@ -452,7 +458,10 @@ export default class App {
 				if (link==undefined) throw new Error("No problem link!");
 				const path = await this.runPath();
 				if (path==null) throw new Error("No file provided");
-				await this.autosubmit.submit(link, path);
+				await this.autosubmit.submit(link, path, this.ts.sets[this.ts.current].name);
+			},
+			closeAutoSubmit: async ({submitter}) => {
+				this.autosubmit.close(submitter);
 			},
 			testCaseInput: async ({inp})=>{
 				if (this.cases.run.runningTest==undefined || !(this.cases.run.runningTest in this.cases.inputs))

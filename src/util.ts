@@ -7,6 +7,7 @@ import { createServer } from "node:net";
 import { join } from "node:path";
 
 declare const PROD: boolean;
+export const isProd = PROD;
 export const outDir = PROD ? "dist" : "out";
 
 export const getChunks = async (ctx: ExtensionContext) =>

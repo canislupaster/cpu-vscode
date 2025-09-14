@@ -416,12 +416,13 @@ export function FileChooser({name,id,path,setPath,optional,kind, deps}: {
 	</div>;
 }
 
-const allVerdicts: TestResult["verdict"][] = ["AC","RE","WA","INT","TL","ML"];
+const allVerdicts: TestResult["verdict"][] = ["AC","RE","WA","INT","TL","ML","CE"];
 export const verdictColor = Object.fromEntries(allVerdicts.map(verdict=>{
 	let x: [string,string,string];
 	switch (verdict) {
 		case "AC": x=["bg-green-400", "dark:text-green-400 text-green-600", "dark:border-green-400 border-green-600"]; break;
 		case "RE":
+		case "CE":
 		case "WA":
 		case "INT": x=["bg-red-400", "dark:text-red-400 text-red-600", "dark:border-red-400 border-red-600"]; break;
 		case "TL":
@@ -439,6 +440,8 @@ export function expandedVerdict(verdict: TestResult["verdict"]) {
 		case "ML": return "Memory limit exceeded";
 		case "WA": return "Wrong answer";
 		case "INT": return "Bad interaction";
+		case "CE": return "Compile error";
+		default: return verdict satisfies never;
 	}
 }
 
