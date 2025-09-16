@@ -4,7 +4,7 @@
   "publisher": "thomasqm",
   "displayName": "Competitive Programmers Union",
   "description": "A smoother competitive programming experience: test cases, debugging, stress testing and more",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "icon": "resources/icon.png",
   "author": "Thomas Marlowe",
   "repository": {
