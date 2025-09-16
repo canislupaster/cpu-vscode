@@ -264,7 +264,10 @@
     "generate-license-file": "^4.0.0",
     "tailwindcss": "^4.1.7",
     "typescript": "^5.8.3",
-    "typescript-eslint": "^8"
+    "typescript-eslint": "^8",
+    "@eslint/js": "^9.35",
+    "eslint": "^9.35",
+    "eslint-plugin-react": "^7.37.5"
   },
   "dependencies": {
     "@codemirror/commands": "^6.8.1",
@@ -272,13 +275,10 @@
     "@codemirror/search": "^6.5.11",
     "@codemirror/state": "^6.5.2",
     "@codemirror/view": "^6.36.8",
-    "@eslint/js": "^9.27",
     "@formkit/drag-and-drop": "^0.5",
     "@heroui/react": "2.8.4",
     "@hono/node-server": "^1.14.3",
     "@vscode/codicons": "^0.0.40",
-    "eslint": "^9.27",
-    "eslint-plugin-react": "^7.37.5",
     "globals": "^16.2.0",
     "hono": "^4.7.10",
     "mustache": "^4.2.0",
