@@ -77,7 +77,6 @@ export function useTestCases() {
 			case "updateRunState": setRun(msg.run); break;
 			case "updateTestSets": setState(s=>({
 				...s, currentTestSet: msg.current, testSets: msg.sets,
-				autoSubmitSupported: msg.autoSubmitSupported
 			})); break;
 		}
 	});

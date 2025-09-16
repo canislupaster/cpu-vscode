@@ -27,16 +27,11 @@ export type Cfg = {
 	nProcs: number,
 	testDir?: string,
 	buildDir?: string,
-
-	browserType: "firefox" | "chromium",
-	browserPath: string,
-	browserProfileDir: string
 };
 
 export const cfgKeys = [
 	"createFiles", "createFileName", "createFileTemplate",
-	"nProcs", "testDir", "buildDir", "browserType",
-	"browserPath", "browserProfileDir"
+	"nProcs", "testDir", "buildDir"
 ] as const satisfies (keyof Cfg)[];
 
 export const defaultRunCfg: RunCfg = {
@@ -98,8 +93,6 @@ export type MessageToExt = {
 } | {
 	type: "setProgram", cmd: "clear"|"open"|"setLast"
 } | {
-	type: "autosubmit"
-} | {
 	type: "testCaseInput", inp: string
 } | {
 	type: "createTestSet"|"importTests"
@@ -131,8 +124,6 @@ export type MessageToExt = {
 	type: "setLanguageCfgGlobally", language: string
 } | {
 	type: "panelReady"
-} | {
-	type: "closeAutoSubmit", submitter: number
 };
 
 export type SetStateMessage = {type: "setUIState", newState: object};
@@ -219,8 +210,6 @@ export type InitState = {
 	currentTestSet: number,
 	buildDir: string, testSetDir: string,
 	theme: Theme,
-	autoSubmitSupported: boolean,
-	autoSubmitterStatus: AutoSubmitUpdateWhen[]
 };
 
 export type TestOut = {
@@ -229,27 +218,6 @@ export type TestOut = {
 };
 
 export type Checker = {type: "file", path: string}|{type: "default", name: string};
-
-export type AutoSubmitUpdate = ({
-	type: "verdict",
-	verdict: TestResult["verdict"],
-} | {
-	type: "testing"|"submitting"|"closed",
-} | {
-	type: "error",
-	error: Error
-})&{
-	testCase?: number,
-	link?: string
-};
-
-export type AutoSubmitUpdateWhen = AutoSubmitUpdate&{
-	id: number,
-	// epoch, milliseconds
-	when: number,
-	name: string,
-	problemLink: string
-};
 
 export type MessageFromExt = {
 	type: "updateTestCases",
@@ -288,12 +256,9 @@ export type MessageFromExt = {
 } | {
 	type: "updateTestSets",
 	current: number,
-	autoSubmitSupported: boolean,
 	sets: TestSets
 } | {
 	type: "fileChosen", key: string, path: string
 } | {
 	type: "themeChange", newTheme: Theme
-} | {
-	type: "updateAutoSubmitStatus", status: AutoSubmitUpdateWhen[]
 };

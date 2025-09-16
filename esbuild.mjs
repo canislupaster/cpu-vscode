@@ -1,8 +1,7 @@
 import { spawn } from "child_process";
 import * as esbuild from "esbuild";
-import { rm, mkdir, readFile, writeFile, copyFile, readdir } from "fs/promises";
+import { rm, mkdir, readFile, writeFile } from "fs/promises";
 import { getLicenseFileText } from "generate-license-file";
-import { join } from "path";
 
 const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
@@ -68,29 +67,6 @@ async function main() {
     }
   });
 
-  /**
-   * @type {import('esbuild').Plugin}
-   */
-  const playwrightFixer = {
-    name: 'playwright-fixer',
-
-    setup(build) {
-      build.onEnd(async () => {
-        await copyFile("node_modules/playwright/package.json", join(outDir, "playwright-package.json"));
-        for (const file of await readdir(outDir, {withFileTypes: true})) {
-          if (file.name.endsWith(".js")) {
-            const path = join(file.parentPath, file.name);
-            const txt = await readFile(path, "utf-8");
-            // fucking hell man
-            const newTxt = txt.replaceAll(`"../../../package.json"`, `"./playwright-package.json"`);
-            await writeFile(path, newTxt);
-          }
-        }
-      });
-    }
-  };
-
-
   const makeCtx = (name, entryPoints, platform, split=true) => esbuild.context({
     entryPoints,
     bundle: true,
@@ -111,7 +87,7 @@ async function main() {
       WATCH: watch ? "true" : "false",
       PROD: production ? "true" : "false"
     },
-    plugins: [ esbuildProblemMatcherPlugin(name), playwrightFixer ],
+    plugins: [ esbuildProblemMatcherPlugin(name) ],
     banner: platform=="browser" ? undefined : {
       js: `
         import { createRequire } from 'module';

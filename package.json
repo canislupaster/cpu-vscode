@@ -208,20 +208,6 @@
             "GDB on Windows, CodeLLDB otherwise"
           ],
           "default": "auto"
-        },
-        "cpu.browserType": {
-          "type": "string",
-          "enum": [
-            "firefox",
-            "chromium"
-          ],
-          "default": "chromium",
-          "description": "Which browser to use for autosubmission"
-        },
-        "cpu.browserPath": {
-          "type": "string",
-          "default": "",
-          "description": "Path to browser executable for autosubmission"
         }
       }
     },
@@ -297,7 +283,6 @@
     "hono": "^4.7.10",
     "mustache": "^4.2.0",
     "pidusage": "^4.0.1",
-    "playwright": "^1.52.0",
     "react": "^19",
     "react-collapse": "^5.1.1",
     "react-dom": "^19",

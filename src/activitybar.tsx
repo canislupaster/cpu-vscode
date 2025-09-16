@@ -1,6 +1,6 @@
 import React from "react";
 import { RunState, RunType, TestCaseI, TestResult } from "./shared";
-import { Anchor, appInit, AppTooltip, bgColor, Button, Card, Divider, DragHandle, dragTCs, HiddenInput, Icon, IconButton, Loading, render, send, Tag, Text, textColor, ThemeSpinner, useMessage, verdictColor } from "./ui";
+import { Anchor, AppTooltip, bgColor, Button, Card, Divider, DragHandle, dragTCs, HiddenInput, Icon, IconButton, Loading, render, send, Tag, Text, textColor, ThemeSpinner, verdictColor } from "./ui";
 import { useMemo, useState } from "react";
 import { TestCaseFile, TestCaseOutput, useTestSource, useTestCases, SetProgram, RunStats, TestErr, TestSetStatus, DiffContextProvider } from "./testcase";
 import { Collapse } from "react-collapse";
@@ -149,21 +149,6 @@ const RunAllStatus = React.memo(({runAll}: {runAll: RunState["runAll"]})=>{
 	</div>;
 });
 
-function AutoSubmitStatus() {
-	const [statuses, setStatuses] = useState(appInit.autoSubmitterStatus);
-	useMessage(x=>{
-		if (x.type=="updateAutoSubmitStatus") setStatuses(x.status);
-	});
-	const sortedStatus = useMemo(()=>statuses.toSorted((a,b)=>a.id-b.id), [statuses]);
-	return sortedStatus.length==0 ? <></> : <>
-		<div className="flex flex-col gap-1" >
-			<Text v="bold" >Active submissions</Text>
-			{/* TODO: finish autosubmit... */}
-		</div>
-		<Divider/>
-	</>;
-}
-
 function App() {
 	const tc = useTestCases();
 	const [order,drag] = dragTCs(tc.ordered);
@@ -188,14 +173,10 @@ function App() {
 				: <Button icon={<Icon icon="run-all" />}
 						onClick={()=>send({type: "runAll"})} className={`${bgColor.green} flex-1`}
 						disabled={tc.ordered.length==0 || tc.run.runAll.cancellable!=null} >Run all</Button>}
-			{tc.autoSubmitSupported && <Button className="flex-1"
-				onClick={()=>send({type: "autosubmit"})} >Submit</Button>}
 		</div>
 		
 		<RunAllStatus runAll={tc.run.runAll} />
 		<Divider/>
-
-		<AutoSubmitStatus />
 
 		<div className="flex flex-row gap-4 justify-between" >
 			<Text v="bold" >Tests</Text>
